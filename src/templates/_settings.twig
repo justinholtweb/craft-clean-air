@@ -1,0 +1,149 @@
+{% import "_includes/forms" as forms %}
+
+<h2>{{ "What can be filtered"|t('cleanair') }}</h2>
+
+<p class="light">
+    {{ "Leave a type empty to allow every source the user already has permission to see. Restricting a type here narrows it further — Clean Air never widens anyone’s access."|t('cleanair') }}
+</p>
+
+{% for key, type in types %}
+    {% set sources = type.sources() %}
+    {% if sources|length %}
+        {% set options = [] %}
+        {% for source in sources %}
+            {% set options = options|merge([{ label: source.label ~ (source.hint ? ' — ' ~ source.hint : ''), value: source.key }]) %}
+        {% endfor %}
+
+        {{ forms.checkboxSelectField({
+            label: type.label(),
+            instructions: "Sources of this type that may be filtered."|t('cleanair'),
+            id: 'filterableSources-' ~ key,
+            name: 'settings[filterableSources][' ~ key ~ ']',
+            options: options,
+            values: settings.filterableSources[key] ?? [],
+            showAllOption: false,
+        }) }}
+    {% endif %}
+{% endfor %}
+
+{{ forms.checkboxSelectField({
+    label: "Disabled element types"|t('cleanair'),
+    instructions: "Element types Clean Air won’t offer at all."|t('cleanair'),
+    id: 'disabledElementTypes',
+    name: 'settings[disabledElementTypes]',
+    options: elementTypeOptions,
+    values: settings.disabledElementTypes,
+    showAllOption: false,
+}) }}
+
+<hr>
+
+<h2>{{ "Results"|t('cleanair') }}</h2>
+
+{{ forms.textField({
+    label: "Results per page"|t('cleanair'),
+    id: 'resultsPerPage',
+    name: 'settings[resultsPerPage]',
+    value: settings.resultsPerPage,
+    size: 6,
+    type: 'number',
+}) }}
+
+{{ forms.textField({
+    label: "“Match any” ID limit"|t('cleanair'),
+    instructions: "A “match any” filter runs one query per condition and unions the results, so it needs a ceiling. Results past this are truncated, and the filter says so."|t('cleanair'),
+    id: 'anyMatchIdLimit',
+    name: 'settings[anyMatchIdLimit]',
+    value: settings.anyMatchIdLimit,
+    size: 8,
+    type: 'number',
+}) }}
+
+{{ forms.lightswitchField({
+    label: "Shareable result links"|t('cleanair'),
+    instructions: "Adds a link to each result set that reproduces the filter. Turn off if you’d rather filter conditions didn’t appear in browser history or server logs."|t('cleanair'),
+    id: 'shareableUrls',
+    name: 'settings[shareableUrls]',
+    on: settings.shareableUrls,
+}) }}
+
+<hr>
+
+<h2>{{ "Exports"|t('cleanair') }}</h2>
+
+{{ forms.textField({
+    label: "Queue exports above"|t('cleanair'),
+    instructions: "Result counts above this are exported on the queue instead of in the request. 0 always exports immediately."|t('cleanair'),
+    id: 'queueExportThreshold',
+    name: 'settings[queueExportThreshold]',
+    value: settings.queueExportThreshold,
+    size: 8,
+    type: 'number',
+    disabled: not isPro,
+    warning: not isPro ? "Pro only."|t('cleanair'),
+}) }}
+
+{{ forms.textField({
+    label: "Maximum export rows"|t('cleanair'),
+    instructions: "A hard ceiling on a single export. 0 means no limit."|t('cleanair'),
+    id: 'maxExportRows',
+    name: 'settings[maxExportRows]',
+    value: settings.maxExportRows,
+    size: 8,
+    type: 'number',
+}) }}
+
+{{ forms.textField({
+    label: "Keep export files for"|t('cleanair'),
+    instructions: "Days. Exports are snapshots of real content — often personal data — so they shouldn’t sit on disk forever. 0 keeps them indefinitely."|t('cleanair'),
+    id: 'exportRetentionDays',
+    name: 'settings[exportRetentionDays]',
+    value: settings.exportRetentionDays,
+    size: 6,
+    type: 'number',
+}) }}
+
+{{ forms.textField({
+    label: "Export batch size"|t('cleanair'),
+    instructions: "How many elements are loaded at a time while writing a file."|t('cleanair'),
+    id: 'exportBatchSize',
+    name: 'settings[exportBatchSize]',
+    value: settings.exportBatchSize,
+    size: 6,
+    type: 'number',
+}) }}
+
+{{ forms.textField({
+    label: "CSV delimiter"|t('cleanair'),
+    instructions: "A single character. Some locales expect a semicolon."|t('cleanair'),
+    id: 'csvDelimiter',
+    name: 'settings[csvDelimiter]',
+    value: settings.csvDelimiter,
+    size: 2,
+}) }}
+
+{{ forms.lightswitchField({
+    label: "Write a byte order mark in CSV files"|t('cleanair'),
+    instructions: "Excel reads a UTF-8 file as Latin-1 without one, which is how exported names come back full of question marks."|t('cleanair'),
+    id: 'csvBom',
+    name: 'settings[csvBom]',
+    on: settings.csvBom,
+}) }}
+
+<hr>
+
+<h2>{{ "Logging"|t('cleanair') }}</h2>
+
+{{ forms.selectField({
+    label: "Log level"|t('cleanair'),
+    instructions: "Clean Air writes to its own log at storage/logs/cleanair.log. Exports are recorded at info level."|t('cleanair'),
+    id: 'logLevel',
+    name: 'settings[logLevel]',
+    value: settings.logLevel,
+    options: [
+        { label: 'Error', value: 'error' },
+        { label: 'Warning', value: 'warning' },
+        { label: 'Info', value: 'info' },
+        { label: 'Debug', value: 'debug' },
+    ],
+}) }}

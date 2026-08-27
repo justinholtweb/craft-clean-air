@@ -1,0 +1,68 @@
+{% extends "_layouts/cp" %}
+
+{% set title = "Exports"|t('cleanair') %}
+{% set selectedSubnavItem = 'exports' %}
+
+{% do view.registerAssetBundle("justinholtweb\\cleanair\\web\\assets\\cp\\CleanAirAsset") %}
+
+{% block content %}
+
+    {% if not exports|length %}
+        <div class="cleanair-empty">
+            <p>{{ 'No exports yet. Run a filter and export the results.'|t('cleanair') }}</p>
+        </div>
+    {% else %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Export'|t('cleanair') }}</th>
+                    <th scope="col">{{ 'Format'|t('cleanair') }}</th>
+                    <th scope="col">{{ 'Rows'|t('cleanair') }}</th>
+                    <th scope="col">{{ 'Status'|t('cleanair') }}</th>
+                    <th scope="col">{{ 'Created'|t('cleanair') }}</th>
+                    <th scope="col" class="thin"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for export in exports %}
+                    <tr>
+                        <td>{{ export.label ?: export.elementType|split('\\')|last }}</td>
+                        <td class="light">{{ export.format|upper }}</td>
+                        <td class="cleanair-num">{{ export.rowCount ? export.rowCount|number : '—' }}</td>
+                        <td>
+                            {% if export.status == 'done' %}
+                                <span class="status green"></span>{{ 'Ready'|t('cleanair') }}
+                            {% elseif export.status == 'failed' %}
+                                <span class="status red"></span>{{ 'Failed'|t('cleanair') }}
+                                {% if export.error %}<br><span class="light">{{ export.error }}</span>{% endif %}
+                            {% elseif export.status == 'running' %}
+                                <span class="status orange"></span>{{ 'Building'|t('cleanair') }}
+                            {% else %}
+                                <span class="status"></span>{{ 'Queued'|t('cleanair') }}
+                            {% endif %}
+                        </td>
+                        <td class="light">{{ export.dateCreated|datetime('short') }}</td>
+                        <td class="thin nowrap">
+                            {% if export.status == 'done' %}
+                                <a class="btn small" href="{{ actionUrl('cleanair/exports/download', { id: export.id }) }}">{{ 'Download'|t('cleanair') }}</a>
+                            {% endif %}
+                            <form method="post" style="display:inline">
+                                {{ csrfInput() }}
+                                {{ actionInput('cleanair/exports/delete') }}
+                                <input type="hidden" name="id" value="{{ export.id }}">
+                                <button type="submit" class="btn small delete">{{ 'Delete'|t('app') }}</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if retentionDays %}
+            <p class="light" style="margin-top:16px">
+                {{ 'Export files are deleted after {days} days.'|t('cleanair', { days: retentionDays }) }}
+            </p>
+        {% endif %}
+    {% endif %}
+
+{% endblock %}

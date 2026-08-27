@@ -1,0 +1,87 @@
+{% extends "_layouts/cp" %}
+
+{% set title = "Saved filters"|t('cleanair') %}
+{% set selectedSubnavItem = 'saved' %}
+
+{% do view.registerAssetBundle("justinholtweb\\cleanair\\web\\assets\\cp\\CleanAirAsset") %}
+
+{% block content %}
+
+    {% if not filters|length %}
+        <div class="cleanair-empty">
+            <p>{{ 'No saved filters yet.'|t('cleanair') }}</p>
+            <p><a class="btn submit" href="{{ url('cleanair') }}">{{ 'Build one'|t('cleanair') }}</a></p>
+        </div>
+    {% else %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Name'|t('cleanair') }}</th>
+                    <th scope="col">{{ 'Element type'|t('cleanair') }}</th>
+                    <th scope="col">{{ 'Handle'|t('cleanair') }}</th>
+                    <th scope="col">{{ 'Owner'|t('cleanair') }}</th>
+                    <th scope="col">{{ 'Visibility'|t('cleanair') }}</th>
+                    <th scope="col">{{ 'Last run'|t('cleanair') }}</th>
+                    <th scope="col" class="thin"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for filter in filters %}
+                    {% set elementType = filter.elementType %}
+                    <tr>
+                        <td>
+                            <a href="{{ filter.getCpUrl() }}">{{ filter.name }}</a>
+                            {% if filter.pinned %}<span class="cleanair-badge">{{ 'Pinned'|t('cleanair') }}</span>{% endif %}
+                        </td>
+                        <td class="light">{{ elementType|split('\\')|last }}</td>
+                        <td><code>{{ filter.handle }}</code></td>
+                        <td class="light">{{ filter.getUser() ? filter.getUser().username : '—' }}</td>
+                        <td>
+                            {% if filter.isShared() %}
+                                <span class="cleanair-badge cleanair-badge--pro">{{ 'Shared'|t('cleanair') }}</span>
+                            {% else %}
+                                <span class="light">{{ 'Private'|t('cleanair') }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="light">{{ filter.dateLastRun ? filter.dateLastRun|datetime('short') : '—' }}</td>
+                        <td class="thin nowrap">
+                            {% if plugin.permissions.canWriteFilter(filter) %}
+                                <form method="post" style="display:inline">
+                                    {{ csrfInput() }}
+                                    {{ actionInput('cleanair/saved-filters/toggle-pin') }}
+                                    <input type="hidden" name="id" value="{{ filter.id }}">
+                                    <button type="submit" class="btn small">{{ filter.pinned ? 'Unpin'|t('cleanair') : 'Pin'|t('cleanair') }}</button>
+                                </form>
+                            {% endif %}
+
+                            <form method="post" style="display:inline">
+                                {{ csrfInput() }}
+                                {{ actionInput('cleanair/saved-filters/duplicate') }}
+                                <input type="hidden" name="id" value="{{ filter.id }}">
+                                <button type="submit" class="btn small">{{ 'Duplicate'|t('cleanair') }}</button>
+                            </form>
+
+                            {% if plugin.permissions.canWriteFilter(filter) %}
+                                <form method="post" style="display:inline">
+                                    {{ csrfInput() }}
+                                    {{ actionInput('cleanair/saved-filters/delete') }}
+                                    <input type="hidden" name="id" value="{{ filter.id }}">
+                                    <button type="submit" class="btn small delete">{{ 'Delete'|t('app') }}</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if isPro %}
+            <p class="light" style="margin-top:16px">
+                {{ 'Templates can run a saved filter by handle: {code}'|t('cleanair', {
+                    code: '<code>craft.cleanair.filter(\'handle\').all()</code>'
+                })|raw }}
+            </p>
+        {% endif %}
+    {% endif %}
+
+{% endblock %}

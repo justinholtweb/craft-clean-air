@@ -1,0 +1,102 @@
+{# The operator menu and value input for one criterion.
+
+   Rendered here rather than assembled in JavaScript so that a relation criterion gets
+   Craft's own element selector and a date criterion gets Craft's own date picker — the same
+   inputs, with the same behaviour, as everywhere else in the control panel. #}
+
+{% import "_includes/forms" as forms %}
+
+{% set name = 'filter[criteria][' ~ index ~ ']' %}
+{% set operatorDefinition = definition ? operators[operator] ?? null : null %}
+{% set inputType = operatorDefinition ? operatorDefinition.input : 'none' %}
+
+<div class="cleanair-criterion__operator">
+    {% if definition and operators|length %}
+        <div class="select fullwidth">
+            <select name="{{ name }}[operator]" data-cleanair-operator>
+                {% for handle, op in operators %}
+                    <option value="{{ handle }}"{% if handle == operator %} selected{% endif %}>{{ op.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    {% endif %}
+</div>
+
+<div class="cleanair-criterion__value">
+    {% if inputType == 'text' %}
+        <input type="text" class="text fullwidth" name="{{ name }}[value]" value="{{ value is iterable ? '' : value }}" autocomplete="off">
+
+    {% elseif inputType == 'textarea' %}
+        <textarea class="text fullwidth" rows="2" name="{{ name }}[value]"
+                  placeholder="{{ 'One value per line'|t('cleanair') }}">{{ value is iterable ? value|join("\n") : value }}</textarea>
+
+    {% elseif inputType == 'number' %}
+        <input type="number" step="any" class="text fullwidth" name="{{ name }}[value]" value="{{ value is iterable ? '' : value }}">
+
+    {% elseif inputType == 'range' %}
+        <input type="number" step="any" class="text" name="{{ name }}[value]" value="{{ value is iterable ? '' : value }}" placeholder="{{ 'From'|t('cleanair') }}">
+        <input type="number" step="any" class="text" name="{{ name }}[value2]" value="{{ value2 is iterable ? '' : value2 }}" placeholder="{{ 'To'|t('cleanair') }}">
+
+    {% elseif inputType == 'date' %}
+        {{ forms.date({ name: name ~ '[value]', value: dateValue ?? null }) }}
+
+    {% elseif inputType == 'dateRange' %}
+        {{ forms.date({ name: name ~ '[value]', value: dateValue ?? null }) }}
+        {{ forms.date({ name: name ~ '[value2]', value: dateValue2 ?? null }) }}
+
+    {% elseif inputType == 'relative' %}
+        <input type="number" min="1" step="1" class="text" style="max-width:90px"
+               name="{{ name }}[value]" value="{{ value is iterable ? 30 : (value ?: 30) }}">
+        <div class="select">
+            <select name="{{ name }}[value2]">
+                {% for unit, label in {
+                    hours: 'hours'|t('cleanair'),
+                    days: 'days'|t('cleanair'),
+                    weeks: 'weeks'|t('cleanair'),
+                    months: 'months'|t('cleanair'),
+                    years: 'years'|t('cleanair')
+                } %}
+                    <option value="{{ unit }}"{% if value2 == unit %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+    {% elseif inputType == 'select' %}
+        <div class="select fullwidth">
+            <select name="{{ name }}[value]">
+                <option value="">{{ 'Choose…'|t('cleanair') }}</option>
+                {% for optionValue, optionLabel in definition.options %}
+                    <option value="{{ optionValue }}"{% if value is not iterable and value is not null and value|trim == optionValue %} selected{% endif %}>{{ optionLabel }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+    {% elseif inputType == 'multiselect' %}
+        {% set selected = value is iterable ? value : (value ? [value] : []) %}
+        <select name="{{ name }}[value][]" class="fullwidth" multiple size="4">
+            {% for optionValue, optionLabel in definition.options %}
+                <option value="{{ optionValue }}"{% if optionValue in selected %} selected{% endif %}>{{ optionLabel }}</option>
+            {% endfor %}
+        </select>
+
+    {% elseif inputType == 'element' %}
+        {% if definition.relationElementType %}
+            {{ forms.elementSelect({
+                name: name ~ '[value]',
+                elementType: definition.relationElementType,
+                elements: valueElements ?? [],
+                limit: 20,
+                selectionLabel: 'Choose'|t('cleanair')
+            }) }}
+        {% else %}
+            <input type="text" class="text fullwidth" name="{{ name }}[value]" value="{{ value is iterable ? '' : value }}"
+                   placeholder="{{ 'Element ID'|t('cleanair') }}">
+        {% endif %}
+    {% endif %}
+
+    {% if definition and definition.partial %}
+        <p class="cleanair-criterion__note">
+            {{ '{field} isn’t on every type in this source — anything without it can never match.'|t('cleanair', { field: definition.label }) }}
+        </p>
+    {% endif %}
+</div>

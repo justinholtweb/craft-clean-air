@@ -1,0 +1,40 @@
+{# One row of the filter. #}
+
+<div class="cleanair-criterion" data-cleanair-criterion data-index="{{ index }}">
+    <div class="cleanair-criterion__field">
+        <div class="select fullwidth">
+            <select name="filter[criteria][{{ index }}][field]" data-cleanair-field>
+                <option value="">{{ 'Choose a field…'|t('cleanair') }}</option>
+                {% for group, definitions in grouped %}
+                    <optgroup label="{{ group|t('cleanair') }}">
+                        {% for definition in definitions %}
+                            <option value="{{ definition.handle }}"{% if criterion is defined and criterion and criterion.field == definition.handle %} selected{% endif %}>
+                                {{ definition.label }}{% if definition.partial %} *{% endif %}
+                            </option>
+                        {% endfor %}
+                    </optgroup>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="cleanair-criterion__inputs" data-cleanair-inputs>
+        {% if definition is defined and definition %}
+            {% include 'cleanair/_partials/criterion-inputs' with {
+                definition: definition,
+                operators: operators,
+                operator: operator,
+                index: index,
+                value: value ?? null,
+                value2: value2 ?? null,
+                dateValue: dateValue ?? null,
+                dateValue2: dateValue2 ?? null,
+                valueElements: valueElements ?? []
+            } only %}
+        {% endif %}
+    </div>
+
+    <div class="cleanair-criterion__remove">
+        <button type="button" class="delete icon" data-cleanair-remove title="{{ 'Remove'|t('cleanair') }}"></button>
+    </div>
+</div>

@@ -1,0 +1,69 @@
+{# The results table. #}
+
+<div class="cleanair-results">
+
+    {% for warning in results.warnings %}
+        <p class="warning cleanair-warning">{{ warning }}</p>
+    {% endfor %}
+
+    <div class="flex" style="align-items:center;gap:12px;margin-bottom:10px;">
+        <h2 style="margin:0">
+            {{ '{count, number} {count, plural, =1{result} other{results}}'|t('cleanair', { count: results.total }) }}
+        </h2>
+
+        {% if shareUrl %}
+            <a class="btn small" href="{{ shareUrl }}">{{ 'Link to these results'|t('cleanair') }}</a>
+        {% endif %}
+    </div>
+
+    {% if results.total == 0 %}
+        <div class="cleanair-empty">
+            <p>{{ 'Nothing matched.'|t('cleanair') }}</p>
+        </div>
+    {% else %}
+        <div class="tableview">
+            <table class="data fullwidth">
+                <thead>
+                    <tr>
+                        {% for key in results.columns %}
+                            <th scope="col">{{ plugin.columns.label(type, filter.source, key) }}</th>
+                        {% endfor %}
+                        <th scope="col" class="thin"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for element in results.elements %}
+                        <tr>
+                            {% for key in results.columns %}
+                                <td>{{ plugin.columns.html(element, type, filter.source, key)|raw }}</td>
+                            {% endfor %}
+                            <td class="thin">
+                                {% set editUrl = element.getCpEditUrl() %}
+                                {% if editUrl %}
+                                    <a class="btn small" href="{{ editUrl }}">{{ 'Edit'|t('app') }}</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if results.pageCount > 1 %}
+            {% set pageUrlParams = { filter: filter.toArray(), run: 1 } %}
+            <nav class="pagination flex" style="gap:6px;margin-top:16px;align-items:center;">
+                {% if results.page > 1 %}
+                    <a class="btn" href="{{ url('cleanair/type/' ~ type.key(), pageUrlParams|merge({ page: results.page - 1 })) }}">{{ 'Previous'|t('app') }}</a>
+                {% endif %}
+
+                <span class="light">
+                    {{ 'Page {page} of {total}'|t('cleanair', { page: results.page, total: results.pageCount }) }}
+                </span>
+
+                {% if results.page < results.pageCount %}
+                    <a class="btn" href="{{ url('cleanair/type/' ~ type.key(), pageUrlParams|merge({ page: results.page + 1 })) }}">{{ 'Next'|t('app') }}</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    {% endif %}
+</div>

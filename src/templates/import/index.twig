@@ -1,0 +1,95 @@
+{% extends "_layouts/cp" %}
+
+{% set title = "Import from CP Filters"|t('cleanair') %}
+{% set selectedSubnavItem = 'import' %}
+
+{% do view.registerAssetBundle("justinholtweb\\cleanair\\web\\assets\\cp\\CleanAirAsset") %}
+
+{% block content %}
+
+    {% if not available %}
+        <div class="cleanair-empty">
+            <p>{{ 'No CP Filters table found on this site, so there’s nothing to import.'|t('cleanair') }}</p>
+        </div>
+    {% else %}
+
+        <p>
+            {{ 'These are the saved filters Clean Air found in CP Filters’ table. Nothing is written until you import — and CP Filters itself is left exactly as it is, so you can compare the two before uninstalling it.'|t('cleanair') }}
+        </p>
+
+        {% if report %}
+            <div class="pane" style="margin:16px 0">
+                <h2>{{ 'Last import'|t('cleanair') }}</h2>
+                <p>{{ '{imported} imported, {skipped} skipped, {failed} failed.'|t('cleanair', report) }}</p>
+                <ul>
+                    {% for message in report.messages %}
+                        <li>
+                            <strong>{{ message.name }}</strong> — {{ message.status }}
+                            {% if message.notes %}
+                                <ul>{% for note in message.notes %}<li class="light">{{ note }}</li>{% endfor %}</ul>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
+        <form method="post">
+            {{ csrfInput() }}
+            {{ actionInput('cleanair/import/run') }}
+
+            <table class="data fullwidth">
+                <thead>
+                    <tr>
+                        <th scope="col" class="thin"></th>
+                        <th scope="col">{{ 'Filter'|t('cleanair') }}</th>
+                        <th scope="col">{{ 'Element type'|t('cleanair') }}</th>
+                        <th scope="col">{{ 'Source'|t('cleanair') }}</th>
+                        <th scope="col">{{ 'Owner'|t('cleanair') }}</th>
+                        <th scope="col">{{ 'Conditions'|t('cleanair') }}</th>
+                        <th scope="col">{{ 'Notes'|t('cleanair') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                        {% set rowClass = not row.importable ? 'cleanair-import-row--failed' : (row.warnings|length ? 'cleanair-import-row--warning' : '') %}
+                        <tr class="{{ rowClass }}">
+                            <td class="thin">
+                                <input type="checkbox" name="ids[]" value="{{ row.id }}"
+                                       {% if row.importable %}checked{% else %}disabled{% endif %}>
+                            </td>
+                            <td>{{ row.name }}</td>
+                            <td class="light">{{ row.typeKey }}</td>
+                            <td class="light">{{ row.sourceLabel ?: ('All sources'|t('cleanair')) }}</td>
+                            <td class="light">{{ row.owner ?: '—' }}</td>
+                            <td class="cleanair-num">{{ row.criteria|length }}</td>
+                            <td>
+                                {% if row.warnings %}
+                                    <ul>{% for warning in row.warnings %}<li class="light">{{ warning }}</li>{% endfor %}</ul>
+                                {% else %}
+                                    <span class="light">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="7" class="light">{{ 'CP Filters is installed, but it has no saved filters.'|t('cleanair') }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="cleanair-actions">
+                <label><input type="checkbox" name="skipExisting" value="1" checked> {{ 'Skip filters that already exist here'|t('cleanair') }}</label>
+                <label><input type="checkbox" name="importSettings" value="1" checked> {{ 'Also carry over CP Filters’ settings'|t('cleanair') }}</label>
+                {% if canShare %}
+                    <label><input type="checkbox" name="share" value="1"> {{ 'Import as shared filters'|t('cleanair') }}</label>
+                {% endif %}
+                <label><input type="checkbox" name="includeDeleted" value="1" {% if includeDeleted %}checked{% endif %}> {{ 'Include filters deleted in CP Filters'|t('cleanair') }}</label>
+
+                <div class="flex-grow"></div>
+                <button type="submit" class="btn submit">{{ 'Import'|t('cleanair') }}</button>
+            </div>
+        </form>
+
+    {% endif %}
+
+{% endblock %}

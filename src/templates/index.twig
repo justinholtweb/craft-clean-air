@@ -1,0 +1,220 @@
+{% extends "_layouts/cp" %}
+{% import "_includes/forms" as forms %}
+
+{% set title = "Clean Air"|t('cleanair') %}
+{% set selectedSubnavItem = 'filter' %}
+{% set fullPageForm = false %}
+
+{% do view.registerAssetBundle("justinholtweb\\cleanair\\web\\assets\\cp\\CleanAirAsset") %}
+
+{% set typeKey = type.key() %}
+
+{% block content %}
+
+    {# Element types are links rather than a menu: switching type starts a new filter, because
+       a condition on an entry's post date means nothing once you're looking at users. #}
+    <nav class="cleanair-types">
+        <ul class="pane-tabs" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;list-style:none;padding:0;">
+            {% for key, candidate in types %}
+                <li>
+                    <a class="btn{% if key == typeKey %} active submit{% endif %}"
+                       href="{{ url('cleanair/type/' ~ key) }}">{{ candidate.label() }}</a>
+                </li>
+            {% endfor %}
+        </ul>
+    </nav>
+
+    <form method="post" action="{{ url('cleanair/type/' ~ typeKey) }}" accept-charset="UTF-8" id="cleanair-form">
+        {{ csrfInput() }}
+        <input type="hidden" name="run" value="1">
+        <input type="hidden" name="filter[elementType]" value="{{ type.elementType() }}">
+        {% if filterId %}<input type="hidden" name="filterId" value="{{ filterId }}">{% endif %}
+
+        <div class="cleanair-builder"
+             data-cleanair-builder
+             data-type-key="{{ typeKey }}"
+             data-count-action="{{ actionUrl('cleanair/filters/count') }}"
+             data-row-action="{{ actionUrl('cleanair/filters/criterion-row') }}"
+             data-next-index="{{ rows|length }}">
+
+            <div class="cleanair-toolbar">
+                {% if sources|length %}
+                    {% set sourceOptions = [{ label: 'All sources'|t('cleanair'), value: '' }] %}
+                    {% for source in sources %}
+                        {% set sourceOptions = sourceOptions|merge([{
+                            label: source.label ~ (source.hint ? ' — ' ~ source.hint : ''),
+                            value: source.key
+                        }]) %}
+                    {% endfor %}
+
+                    <div class="field">
+                        <div class="heading"><label>{{ 'Source'|t('cleanair') }}</label></div>
+                        <div class="input">
+                            <div class="select">
+                                <select name="filter[source]" data-cleanair-source>
+                                    {% for option in sourceOptions %}
+                                        <option value="{{ option.value }}"{% if option.value == filter.source %} selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% set statusOptions = type.statusOptions() %}
+                {% if statusOptions|length %}
+                    <div class="field">
+                        <div class="heading"><label>{{ 'Status'|t('cleanair') }}</label></div>
+                        <div class="input">
+                            <div class="select">
+                                <select name="filter[status]">
+                                    <option value="">{{ 'Any status'|t('cleanair') }}</option>
+                                    {% for value, label in statusOptions %}
+                                        <option value="{{ value }}"{% if value == filter.status %} selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% set editableSites = craft.app.sites.getEditableSites() %}
+                {% if editableSites|length > 1 %}
+                    <div class="field">
+                        <div class="heading"><label>{{ 'Site'|t('cleanair') }}</label></div>
+                        <div class="input">
+                            <div class="select">
+                                <select name="filter[siteId]">
+                                    {% for site in editableSites %}
+                                        <option value="{{ site.id }}"{% if filter.siteId == site.id %} selected{% endif %}>{{ site.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                <div class="field">
+                    <div class="heading"><label>{{ 'Search'|t('cleanair') }}</label></div>
+                    <div class="input">
+                        <input type="search" class="text" name="filter[search]" value="{{ filter.search }}"
+                               placeholder="{{ 'Keywords'|t('cleanair') }}">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="heading"><label>{{ 'Match'|t('cleanair') }}</label></div>
+                    <div class="input">
+                        <div class="select">
+                            <select name="filter[matchMode]"{% if not isPro %} disabled{% endif %}>
+                                <option value="all"{% if filter.matchMode == 'all' %} selected{% endif %}>{{ 'all conditions'|t('cleanair') }}</option>
+                                <option value="any"{% if filter.matchMode == 'any' %} selected{% endif %}>{{ 'any condition'|t('cleanair') }}</option>
+                            </select>
+                        </div>
+                        {% if not isPro %}
+                            {# Disabled inputs aren't posted, so the value still has to travel. #}
+                            <input type="hidden" name="filter[matchMode]" value="all">
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="cleanair-criteria" data-cleanair-criteria>
+                {% for row in rows %}
+                    {% include 'cleanair/_partials/criterion-row' with {
+                        index: row.index,
+                        criterion: row.criterion,
+                        definition: row.definition,
+                        operators: row.operators,
+                        operator: row.operator,
+                        value: row.value,
+                        value2: row.value2,
+                        dateValue: row.dateValue,
+                        dateValue2: row.dateValue2,
+                        valueElements: row.valueElements,
+                        grouped: grouped
+                    } only %}
+                {% endfor %}
+            </div>
+
+            <template data-cleanair-row-template>
+                {% include 'cleanair/_partials/criterion-row' with {
+                    index: '__INDEX__',
+                    criterion: null,
+                    grouped: grouped
+                } only %}
+            </template>
+
+            <div class="cleanair-actions">
+                <button type="button" class="btn add icon" data-cleanair-add>{{ 'Add a condition'|t('cleanair') }}</button>
+
+                <button type="submit" class="btn submit">{{ 'Run filter'|t('cleanair') }}</button>
+
+                <span class="cleanair-count" data-cleanair-count></span>
+
+                <div class="flex-grow"></div>
+
+                {% if canSave %}
+                    <input type="text" class="text" name="name" style="max-width:200px"
+                           placeholder="{{ 'Name this filter'|t('cleanair') }}">
+
+                    {% if canShare %}
+                        <div class="select">
+                            <select name="visibility">
+                                <option value="private">{{ 'Private'|t('cleanair') }}</option>
+                                <option value="shared">{{ 'Shared'|t('cleanair') }}</option>
+                            </select>
+                        </div>
+                    {% endif %}
+
+                    <button type="submit" class="btn"
+                            formmethod="post"
+                            formaction="{{ actionUrl('cleanair/filters/save') }}">{{ 'Save'|t('cleanair') }}</button>
+                {% endif %}
+
+                {% if canExport %}
+                    <div class="select">
+                        <select name="format">
+                            {% for format, label in plugin.exports.availableFormats() %}
+                                <option value="{{ format }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn"
+                            formmethod="post"
+                            formaction="{{ actionUrl('cleanair/filters/export') }}">{{ 'Export'|t('cleanair') }}</button>
+                {% endif %}
+            </div>
+
+            {% if isPro %}
+                <div style="margin-top:12px">
+                    <button type="button" class="btn menubtn" data-cleanair-columns-toggle>{{ 'Columns'|t('cleanair') }}</button>
+                    <div class="cleanair-columns hidden" data-cleanair-columns>
+                        {% for handle, definition in columnOptions %}
+                            <label>
+                                <input type="checkbox" name="filter[columns][]" value="{{ handle }}"
+                                       {% if handle in selectedColumns %}checked{% endif %}>
+                                {{ definition.label }}
+                            </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% else %}
+                {% for handle in selectedColumns %}
+                    <input type="hidden" name="filter[columns][]" value="{{ handle }}">
+                {% endfor %}
+            {% endif %}
+        </div>
+    </form>
+
+    {% if ran and results %}
+        {% include 'cleanair/_partials/results' with {
+            plugin: plugin,
+            type: type,
+            filter: filter,
+            results: results,
+            shareUrl: shareUrl
+        } only %}
+    {% endif %}
+
+{% endblock %}

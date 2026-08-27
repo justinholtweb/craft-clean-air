@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- turbulent air coming in -->
+  <path d="M4 30c4-4 8 4 12 0M4 50c4-4 8 4 12 0M4 70c4-4 8 4 12 0" stroke-width="4"/>
+  <!-- filter housing -->
+  <rect x="24" y="16" width="34" height="68" rx="6"/>
+  <!-- pleats -->
+  <path d="M33 22v56M41 22v56M49 22v56"/>
+  <!-- clean air leaving -->
+  <path d="M66 30h30M66 50h30M66 70h30" stroke-width="4"/>
+</svg>
