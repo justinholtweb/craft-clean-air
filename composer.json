@@ -17,6 +17,7 @@
         "cpfilters"
     ],
     "license": "proprietary",
+    "homepage": "https://justinholt.com/plugins/craft-cleanair",
     "minimum-stability": "dev",
     "prefer-stable": true,
     "authors": [
@@ -26,7 +27,8 @@
         }
     ],
     "support": {
-        "docs": "https://craft-cleanair.com/docs",
+        "email": "justin@justinholt.com",
+        "docs": "https://justinholt.com/plugins/craft-cleanair/docs",
         "source": "https://github.com/justinholtweb/craft-cleanair",
         "issues": "https://github.com/justinholtweb/craft-cleanair/issues"
     },
@@ -65,7 +67,7 @@
         "handle": "cleanair",
         "developer": "Justin Holt",
         "developerUrl": "https://justinholt.com",
-        "documentationUrl": "https://craft-cleanair.com/docs",
+        "documentationUrl": "https://justinholt.com/plugins/craft-cleanair/docs",
         "changelogUrl": "https://raw.githubusercontent.com/justinholtweb/craft-cleanair/main/CHANGELOG.md",
         "class": "justinholtweb\\cleanair\\Plugin"
     }

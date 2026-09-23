@@ -1,5 +1,3 @@
-<p align="center"><img src="src/icon.svg" width="96" alt="Clean Air"></p>
-
 <h1 align="center">Clean Air</h1>
 
 <p align="center">Advanced control panel filtering for every element type in Craft 5 — and a
@@ -54,7 +52,7 @@ Conditions match **all** at once, or **any** of them — CP Filters could only e
 
 Clean Air doesn't ask what class a field is. It asks what shape its value is, and the
 operators follow from that. Which means a plain text field, a URL field, an email field, a
-CKEditor field, a variant SKU and an address line all get the same nine operators without any
+CKEditor field, a variant SKU and an address line all get the same ten operators without any
 of them having been listed anywhere.
 
 | Value shape | Operators |

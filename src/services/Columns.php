@@ -147,9 +147,13 @@ class Columns extends Component
 
         if ($key === 'status') {
             $status = $element->getStatus();
+
+            // Craft styles `.status` as the dot itself, so the label has to sit beside it
+            // rather than inside it — text in the span gets squeezed into the dot's box.
             return $status === null
                 ? ''
-                : Html::tag('span', Html::encode($this->optionLabel($definition, $status)), ['class' => "status $status"]);
+                : Html::tag('span', '', ['class' => "status $status"])
+                    . Html::encode($this->optionLabel($definition, $status));
         }
 
         $raw = $this->rawValue($element, $definition);
