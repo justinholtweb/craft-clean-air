@@ -75,7 +75,7 @@ class Columns extends Component
     public function label(BaseType $type, ?string $source, string $key): string
     {
         $definition = Plugin::getInstance()->fields->definition($type, $source, $key);
-        return $definition?->label ?? $key;
+        return $definition->label ?? $key;
     }
 
     /**

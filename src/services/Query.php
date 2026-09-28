@@ -107,6 +107,7 @@ class Query extends Component
      * default.
      *
      * @param Criterion[] $criteria
+     * @param string[] $warnings
      */
     private function applyAnyMatch(ElementQuery $query, FilterSet $filter, BaseType $type, array $criteria, array &$warnings): void
     {
@@ -148,6 +149,8 @@ class Query extends Component
 
     /**
      * Applies one criterion.
+     *
+     * @param string[] $warnings
      */
     public function apply(ElementQuery $query, BaseType $type, ?string $source, Criterion $criterion, array &$warnings = []): void
     {
@@ -293,6 +296,8 @@ class Query extends Component
      * keep theirs in `elements_owners`. Both are counted the same way, and "at most" is
      * written as the negation of "more than" so that elements with no relations at all are
      * included — which is what everyone means by "has at most 2".
+     *
+     * @param string[] $warnings
      */
     private function applyRelationCount(ElementQuery $query, FieldDefinition $definition, array $instruction, array &$warnings): void
     {

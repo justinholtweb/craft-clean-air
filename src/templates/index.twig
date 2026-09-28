@@ -26,9 +26,9 @@
 
     <form method="post" action="{{ url('cleanair/type/' ~ typeKey) }}" accept-charset="UTF-8" id="cleanair-form">
         {{ csrfInput() }}
-        <input type="hidden" name="run" value="1">
-        <input type="hidden" name="filter[elementType]" value="{{ type.elementType() }}">
-        {% if filterId %}<input type="hidden" name="filterId" value="{{ filterId }}">{% endif %}
+        {{ hiddenInput('run', '1') }}
+        {{ hiddenInput('filter[elementType]', type.elementType()) }}
+        {% if filterId %}{{ hiddenInput('filterId', filterId) }}{% endif %}
 
         <div class="cleanair-builder"
              data-cleanair-builder
@@ -39,7 +39,8 @@
 
             <div class="cleanair-toolbar">
                 {% if sources|length %}
-                    {% set sourceOptions = [{ label: 'All sources'|t('cleanair'), value: '' }] %}
+                    {# Only offered when nothing is held back from this user — see Types::isAllowedSource(). #}
+                    {% set sourceOptions = allowAllSources ? [{ label: 'All sources'|t('cleanair'), value: '' }] : [] %}
                     {% for source in sources %}
                         {% set sourceOptions = sourceOptions|merge([{
                             label: source.label ~ (source.hint ? ' — ' ~ source.hint : ''),
@@ -113,7 +114,7 @@
                         </div>
                         {% if not isPro %}
                             {# Disabled inputs aren't posted, so the value still has to travel. #}
-                            <input type="hidden" name="filter[matchMode]" value="all">
+                            {{ hiddenInput('filter[matchMode]', 'all') }}
                         {% endif %}
                     </div>
                 </div>
@@ -201,7 +202,7 @@
                 </div>
             {% else %}
                 {% for handle in selectedColumns %}
-                    <input type="hidden" name="filter[columns][]" value="{{ handle }}">
+                    {{ hiddenInput('filter[columns][]', handle) }}
                 {% endfor %}
             {% endif %}
         </div>

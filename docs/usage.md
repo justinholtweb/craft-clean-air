@@ -146,6 +146,10 @@ The mapping is mostly one-to-one. Three places it has to think:
 CP Filters' settings come across too, from project config or from a `config/cpfilters.php` file. Its
 `additionalFieldTypes` format is understood as-is.
 
+Carrying over CP Filters' own settings changes Clean Air's settings, which live in project config,
+so that option is only offered to admins, and only where `allowAdminChanges` is on. Anyone else with
+the import permission can still import the filters themselves.
+
 Your CP Filters data is never modified. Import, compare the two, and uninstall the old plugin when
 you are happy.
 

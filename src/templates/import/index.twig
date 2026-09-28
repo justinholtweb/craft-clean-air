@@ -79,7 +79,9 @@
 
             <div class="cleanair-actions">
                 <label><input type="checkbox" name="skipExisting" value="1" checked> {{ 'Skip filters that already exist here'|t('cleanair') }}</label>
-                <label><input type="checkbox" name="importSettings" value="1" checked> {{ 'Also carry over CP Filters’ settings'|t('cleanair') }}</label>
+                {% if canImportSettings %}
+                    <label><input type="checkbox" name="importSettings" value="1" checked> {{ 'Also carry over CP Filters’ settings'|t('cleanair') }}</label>
+                {% endif %}
                 {% if canShare %}
                     <label><input type="checkbox" name="share" value="1"> {{ 'Import as shared filters'|t('cleanair') }}</label>
                 {% endif %}

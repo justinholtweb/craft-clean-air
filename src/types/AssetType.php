@@ -54,7 +54,7 @@ class AssetType extends BaseType
     {
         [$type, $id] = Source::parse($sourceKey);
         if ($type === 'volume' && $id) {
-            $query->volumeId = $id;
+            Craft::configure($query, ['volumeId' => $id]);
         }
     }
 

@@ -21,6 +21,8 @@ class CommerceOrderType extends CommerceType
 
     public function elementType(): string
     {
+        // A string, not ::class: Commerce is optional and may not be installed.
+        // @phpstan-ignore return.type
         return 'craft\\commerce\\elements\\Order';
     }
 

@@ -1,5 +1,29 @@
 # Release Notes for Clean Air
 
+## 5.0.1 — 2026-09-28
+
+### Security
+
+- Fixed a vulnerability where *All sources* let a user filter elements in sources they don't have
+  permission to view, such as every section when they can only see one. *All sources* is now only
+  offered, and only accepted, when the user can view every source of the element type.
+- Fixed a vulnerability where the count, export and save actions accepted any element type and
+  source in the posted filter. A user with the export permission but no access to users could export
+  every account's email address. These actions now check the element type and source the same way
+  the filter builder does.
+- Carrying over CP Filters' settings during an import now requires an admin and `allowAdminChanges`,
+  because it rewrites Clean Air's settings in project config.
+
+### Fixed
+
+- Fixed console and export error messages that printed an empty value in place of the filter handle
+  or format name.
+
+### Changed
+
+- Added PHPStan (level 4) and ECS configuration, with `composer phpstan`, `composer check-cs` and
+  `composer fix-cs`.
+
 ## 5.0.0 — Unreleased
 
 Initial release.

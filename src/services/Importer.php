@@ -101,7 +101,8 @@ class Importer extends Component
      * @return array<int,array{
      *     id: int, name: string, elementType: string|null, typeKey: string,
      *     source: string|null, sourceLabel: string|null, owner: string|null,
-     *     criteria: Criterion[], warnings: string[], importable: bool
+     *     criteria: Criterion[], warnings: string[], importable: bool,
+     *     userId?: int|null, includeDrafts?: bool
      * }>
      */
     public function preview(bool $includeDeleted = false): array
@@ -337,7 +338,7 @@ class Importer extends Component
 
         $user = Craft::$app->getUsers()->getUserById((int)$userId);
 
-        return $user?->username ?? $user?->email;
+        return $user->username ?? $user?->email;
     }
 
     /**

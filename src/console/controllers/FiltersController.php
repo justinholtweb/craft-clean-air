@@ -88,7 +88,7 @@ class FiltersController extends Controller
         $saved = $plugin->savedFilters->getByHandle($handle);
 
         if (!$saved) {
-            $this->stderr("No saved filter with the handle “$handle”.\n", Console::FG_RED);
+            $this->stderr("No saved filter with the handle “{$handle}”.\n", Console::FG_RED);
             return ExitCode::DATAERR;
         }
 
@@ -126,12 +126,12 @@ class FiltersController extends Controller
         $saved = $plugin->savedFilters->getByHandle($handle);
 
         if (!$saved) {
-            $this->stderr("No saved filter with the handle “$handle”.\n", Console::FG_RED);
+            $this->stderr("No saved filter with the handle “{$handle}”.\n", Console::FG_RED);
             return ExitCode::DATAERR;
         }
 
         if (!isset($plugin->exports->formats()[$this->format])) {
-            $this->stderr("Unknown format “$this->format”. Use csv, tsv, json or xml.\n", Console::FG_RED);
+            $this->stderr("Unknown format “{$this->format}”. Use csv, tsv, json or xml.\n", Console::FG_RED);
             return ExitCode::DATAERR;
         }
 

@@ -41,6 +41,7 @@ class ImportController extends Controller
             'rows' => $plugin->importer->isAvailable() ? $plugin->importer->preview($includeDeleted) : [],
             'includeDeleted' => $includeDeleted,
             'canShare' => $plugin->permissions->canShare(),
+            'canImportSettings' => $this->canImportSettings(),
             'report' => Craft::$app->getSession()->get('cleanair.importReport'),
         ]);
     }
@@ -57,7 +58,10 @@ class ImportController extends Controller
             'includeDeleted' => (bool)$request->getBodyParam('includeDeleted'),
             'share' => (bool)$request->getBodyParam('share'),
             'skipExisting' => (bool)$request->getBodyParam('skipExisting', true),
-            'importSettings' => (bool)$request->getBodyParam('importSettings'),
+            // Settings are project config, and they include the source restriction itself, so
+            // carrying them over is admin work — and only where admin changes are allowed. For
+            // anyone else the option is ignored rather than refused: the filters still import.
+            'importSettings' => $this->canImportSettings() && (bool)$request->getBodyParam('importSettings'),
         ]);
 
         Craft::$app->getSession()->set('cleanair.importReport', $report);
@@ -69,5 +73,11 @@ class ImportController extends Controller
         ]));
 
         return $this->redirect(UrlHelper::cpUrl('cleanair/import'));
+    }
+
+    private function canImportSettings(): bool
+    {
+        return Craft::$app->getUser()->getIsAdmin()
+            && Craft::$app->getConfig()->getGeneral()->allowAdminChanges;
     }
 }

@@ -103,7 +103,7 @@ class Exports extends Component
     public function createRecord(FilterSet $filter, string $format, ?string $label, ?int $userId, ?int $filterId): ExportRecord
     {
         if (!isset($this->formats()[$format])) {
-            throw new InvalidArgumentException("Unknown export format “$format”.");
+            throw new InvalidArgumentException("Unknown export format “{$format}”.");
         }
 
         $record = new ExportRecord();
@@ -264,11 +264,14 @@ class Exports extends Component
      */
     public function forUser(?int $userId, int $limit = 25): array
     {
-        return ExportRecord::find()
+        /** @var ExportRecord[] $records */
+        $records = ExportRecord::find()
             ->where(['userId' => $userId])
             ->orderBy(['dateCreated' => SORT_DESC])
             ->limit($limit)
             ->all();
+
+        return $records;
     }
 
     public function delete(ExportRecord $record): void

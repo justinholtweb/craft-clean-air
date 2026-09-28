@@ -59,13 +59,14 @@ class FiltersController extends Controller
         $type = $this->resolveType($filter, $typeKey, $available);
         $filter->elementType = $type->elementType();
 
-        // A source the user isn't allowed to use is dropped rather than honoured, so an
-        // edited URL can't reach past the settings or their permissions.
-        if ($filter->source !== null && !$plugin->types->isAllowedSource($type, $filter->source)) {
-            $filter->source = null;
-        }
-
         $sources = $plugin->types->sources($type);
+
+        // A source the user isn't allowed to use is replaced rather than honoured, so an edited
+        // URL can't reach past the settings or their permissions. "All sources" counts: when it
+        // isn't allowed, the first source they can use is chosen instead.
+        if (!$plugin->types->isAllowedSource($type, $filter->source)) {
+            $filter->source = $sources[0]->key ?? null;
+        }
         $definitions = $plugin->fields->definitions($type, $filter->source);
         $ran = (bool)$request->getParam('run');
 
@@ -81,6 +82,7 @@ class FiltersController extends Controller
             'type' => $type,
             'filter' => $filter,
             'sources' => $sources,
+            'allowAllSources' => $plugin->types->isAllowedSource($type, null),
             'definitions' => $definitions,
             'grouped' => $plugin->fields->grouped($type, $filter->source),
             'rows' => $this->buildRows($type, $filter),
@@ -114,7 +116,8 @@ class FiltersController extends Controller
         $request = Craft::$app->getRequest();
         $plugin = Plugin::getInstance();
 
-        $type = $plugin->types->forKey($request->getRequiredParam('typeKey'));
+        // Only types this user may filter: these describe a type's fields and relation sources.
+        $type = $plugin->types->available()[(string)$request->getRequiredParam('typeKey')] ?? null;
 
         if (!$type) {
             throw new NotFoundHttpException();
@@ -164,7 +167,8 @@ class FiltersController extends Controller
         $request = Craft::$app->getRequest();
         $plugin = Plugin::getInstance();
 
-        $type = $plugin->types->forKey($request->getRequiredParam('typeKey'));
+        // Only types this user may filter: these describe a type's fields and relation sources.
+        $type = $plugin->types->available()[(string)$request->getRequiredParam('typeKey')] ?? null;
 
         if (!$type) {
             throw new NotFoundHttpException();
@@ -197,7 +201,7 @@ class FiltersController extends Controller
     {
         $this->requireAcceptsJson();
 
-        $filter = $this->filterFromRequest();
+        $filter = $this->authorizedFilter();
         $warnings = [];
 
         return $this->asJson([
@@ -227,7 +231,7 @@ class FiltersController extends Controller
             throw new ForbiddenHttpException(Craft::t('cleanair', 'Clean Air Lite exports CSV. Upgrade to Pro for TSV, JSON and XML.'));
         }
 
-        $filter = $this->filterFromRequest();
+        $filter = $this->authorizedFilter();
         $type = $plugin->filters->type($filter);
         $label = (string)($request->getParam('label') ?: $type->label());
         $userId = Craft::$app->getUser()->getId();
@@ -269,7 +273,7 @@ class FiltersController extends Controller
         }
 
         $request = Craft::$app->getRequest();
-        $filterSet = $this->filterFromRequest();
+        $filterSet = $this->authorizedFilter();
         $id = $request->getParam('filterId');
 
         $saved = $id ? $plugin->savedFilters->getById((int)$id) : null;
@@ -347,6 +351,33 @@ class FiltersController extends Controller
         }
 
         return reset($available);
+    }
+
+    /**
+     * A posted filter, refused unless this user may filter its element type and use its source.
+     *
+     * The builder screen checks both before it renders anything, but count, export and save take
+     * the filter straight from the request, so each has to ask again — or a user with the export
+     * permission and no access to users could post `elementType` = User and download every
+     * account's email address. One helper, so no action can forget.
+     *
+     * @throws ForbiddenHttpException
+     */
+    private function authorizedFilter(): FilterSet
+    {
+        $plugin = Plugin::getInstance();
+        $filter = $this->filterFromRequest();
+        $type = $plugin->types->forElementType($filter->elementType);
+
+        if ($type === null || !isset($plugin->types->available()[$type->key()])) {
+            throw new ForbiddenHttpException(Craft::t('cleanair', 'You don’t have permission to filter that element type.'));
+        }
+
+        if (!$plugin->types->isAllowedSource($type, $filter->source)) {
+            throw new ForbiddenHttpException(Craft::t('cleanair', 'You don’t have permission to filter that source.'));
+        }
+
+        return $filter;
     }
 
     /**

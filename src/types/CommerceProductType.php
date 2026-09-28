@@ -19,6 +19,8 @@ class CommerceProductType extends CommerceType
 
     public function elementType(): string
     {
+        // A string, not ::class: Commerce is optional and may not be installed.
+        // @phpstan-ignore return.type
         return 'craft\\commerce\\elements\\Product';
     }
 
@@ -57,7 +59,7 @@ class CommerceProductType extends CommerceType
     {
         [$type, $id] = Source::parse($sourceKey);
         if ($type === 'productType' && $id) {
-            $query->typeId = $id;
+            Craft::configure($query, ['typeId' => $id]);
         }
     }
 

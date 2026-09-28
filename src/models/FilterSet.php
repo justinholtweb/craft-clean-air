@@ -60,9 +60,13 @@ class FilterSet extends Model
     public function init(): void
     {
         parent::init();
+        // Arrays until this runs: the property is declared as criteria, but a config or a
+        // posted form hands it rows.
+        /** @var array<Criterion|array<string,mixed>> $raw */
+        $raw = $this->criteria;
         $this->criteria = array_map(
             fn($c) => $c instanceof Criterion ? $c : Criterion::fromArray((array)$c),
-            $this->criteria,
+            $raw,
         );
     }
 

@@ -311,7 +311,7 @@ class Operators extends Component
         // Assume the *system* timezone, not UTC. A criterion's date is something a person
         // typed, and "is on 25 August" means their 25th of August — reading it as UTC shifts
         // the whole day and quietly returns the wrong one.
-        $date = $value !== null ? DateTimeHelper::toDateTime($value, true, true) : false;
+        $date = DateTimeHelper::toDateTime($value, true, true);
         if ($date === false) {
             return null;
         }

@@ -26,8 +26,9 @@ abstract class CommerceType extends BaseType
         if (!$this->isAvailable()) {
             return null;
         }
-        /** @var class-string $class */
+        // A string, not ::class: Commerce is optional and may not be installed.
         $class = 'craft\\commerce\\Plugin';
+        // @phpstan-ignore function.impossibleType
         return method_exists($class, 'getInstance') ? $class::getInstance() : null;
     }
 

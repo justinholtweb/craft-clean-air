@@ -36,7 +36,7 @@ class FilterFieldValue extends Model
 
     public function getName(): string
     {
-        return $this->getFilter()?->name ?? $this->handle;
+        return $this->getFilter()->name ?? $this->handle;
     }
 
     /** The element query this filter describes, or null if the filter has gone. */

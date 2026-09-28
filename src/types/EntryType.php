@@ -92,9 +92,9 @@ class EntryType extends BaseType
     {
         [$type, $id] = Source::parse($sourceKey);
         if ($type === 'entryType' && $id) {
-            $query->typeId = $id;
+            Craft::configure($query, ['typeId' => $id]);
         } elseif ($type === 'section' && $id) {
-            $query->sectionId = $id;
+            Craft::configure($query, ['sectionId' => $id]);
         }
     }
 

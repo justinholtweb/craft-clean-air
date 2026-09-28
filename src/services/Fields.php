@@ -236,8 +236,8 @@ class Fields extends Component
         /** @var array<string,int> $appearances */
         $appearances = [];
 
+        /** @var FieldLayout $layout */
         foreach ($layouts as $layout) {
-            /** @var FieldLayout $layout */
             foreach ($layout->getCustomFields() as $field) {
                 $handle = $field->handle;
                 if ($handle === null || $handle === '') {

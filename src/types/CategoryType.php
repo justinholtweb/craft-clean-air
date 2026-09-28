@@ -49,7 +49,7 @@ class CategoryType extends BaseType
     {
         [$type, $id] = Source::parse($sourceKey);
         if ($type === 'group' && $id) {
-            $query->groupId = $id;
+            Craft::configure($query, ['groupId' => $id]);
         }
     }
 

@@ -22,14 +22,14 @@ $app = require CRAFT_VENDOR_PATH . '/craftcms/cms/bootstrap/console.php';
 
 use craft\db\Query as DbQuery;
 use craft\elements\Entry;
+use craft\fieldlayoutelements\CustomField;
+use craft\fieldlayoutelements\entries\EntryTitleField;
 use craft\fields\Date;
 use craft\fields\Dropdown;
 use craft\fields\Entries as EntriesField;
 use craft\fields\Lightswitch;
 use craft\fields\Number;
 use craft\fields\PlainText;
-use craft\fieldlayoutelements\CustomField;
-use craft\fieldlayoutelements\entries\EntryTitleField;
 use craft\helpers\Db;
 use craft\models\EntryType;
 use craft\models\FieldLayout;
@@ -37,6 +37,7 @@ use craft\models\FieldLayoutTab;
 use craft\models\Section;
 use craft\models\Section_SiteSettings;
 use justinholtweb\cleanair\models\Criterion;
+use justinholtweb\cleanair\models\Edition;
 use justinholtweb\cleanair\models\FieldDefinition;
 use justinholtweb\cleanair\models\FilterSet;
 use justinholtweb\cleanair\models\SavedFilter;
@@ -489,6 +490,31 @@ check('two conditions on one field still AND', titlesFor(fixtureFilter([
 
 check('the section source covers the entry type', count(titlesFor(fixtureFilter([], ['source' => 'section:' . $section->id]))) === 4);
 
+// "All sources" adds no source condition, so it must only be offered to someone who can see every
+// source. Until 5.0.1 it was offered to anybody when the settings imposed no restriction, and a
+// user limited to one section got every section through it.
+$entryDriver = $plugin->types->forElementType(Entry::class);
+$oneSectionUser = new craft\elements\User();
+$oneSectionUser->username = 'cleanair-check-' . bin2hex(random_bytes(3));
+$oneSectionUser->email = $oneSectionUser->username . '@example.com';
+Craft::$app->getElements()->saveElement($oneSectionUser, false);
+Craft::$app->getUserPermissions()->saveUserPermissions($oneSectionUser->id, ['accesscp', 'viewentries:' . $section->uid]);
+$oneSectionUser = Craft::$app->getUsers()->getUserById($oneSectionUser->id);
+$sectionCount = count(Craft::$app->getEntries()->getAllSections());
+
+try {
+    check('a user who can view one section may use that section', $plugin->types->isAllowedSource($entryDriver, 'section:' . $section->id, $oneSectionUser));
+    check(
+        'but not “All sources”, when other sections exist',
+        $sectionCount === 1 || !$plugin->types->isAllowedSource($entryDriver, null, $oneSectionUser),
+    );
+
+    $admin = craft\elements\User::find()->admin(true)->one();
+    check('an admin may use “All sources”', $admin !== null && $plugin->types->isAllowedSource($entryDriver, null, $admin));
+} finally {
+    Craft::$app->getElements()->deleteElement($oneSectionUser, true);
+}
+
 $warnings = [];
 $plugin->query->build(fixtureFilter([['field' => 'noSuchField', 'operator' => 'eq', 'value' => 'x']]), $warnings);
 check('a condition naming a missing field is reported, not swallowed', count($warnings) === 1);
@@ -646,8 +672,6 @@ check('deleting a filter removes it', $plugin->savedFilters->delete($second->id)
 // ---------------------------------------------------------------------------
 section('Editions');
 // ---------------------------------------------------------------------------
-
-use justinholtweb\cleanair\models\Edition;
 
 check('Lite allows entries', Edition::allowsTypeKey(false, 'entries'));
 check('Lite does not allow Commerce orders', !Edition::allowsTypeKey(false, 'orders'));
@@ -907,7 +931,12 @@ try {
 }
 
 check('the results table renders', str_contains($resultsHtml, '<table'), $resultsError);
-check('the results table shows a fixture entry', str_contains($resultsHtml, 'Gamma Three'));
+// Any of them: the fixtures are saved in the same second, so the default date sort orders them
+// arbitrarily and page 1 of 2 holds a different three from one run to the next.
+check('the results table shows a fixture entry', (bool)array_filter(
+    ['Alpha, One', 'Beta Two', 'Gamma Three', 'Delta Four'],
+    fn(string $title) => str_contains($resultsHtml, $title),
+));
 check('the results table pages', str_contains($resultsHtml, 'Page 1 of 2'));
 
 $settingsHtml = '';

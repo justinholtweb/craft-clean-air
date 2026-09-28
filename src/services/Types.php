@@ -188,9 +188,15 @@ class Types extends Component
     public function isAllowedSource(BaseType $type, ?string $sourceKey, ?User $user = null): bool
     {
         if ($sourceKey === null || $sourceKey === '') {
-            // "All sources" is only allowed when no restriction is in force — otherwise it
-            // would be a way around the restriction.
-            return !Plugin::getInstance()->getSettings()->allowedSources($type->key());
+            // "All sources" is only allowed when nothing is being held back — neither by the
+            // settings nor by Craft's own permissions. A user who can view one section out of
+            // five would otherwise pick "All sources" and get the other four as well, since
+            // "all" adds no source condition to the query at all.
+            if (Plugin::getInstance()->getSettings()->allowedSources($type->key())) {
+                return false;
+            }
+
+            return count($this->sources($type, $user)) === count($type->sources());
         }
 
         foreach ($this->sources($type, $user) as $source) {

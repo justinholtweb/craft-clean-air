@@ -54,8 +54,8 @@ Switch editions in **Settings → Plugins → Clean Air**.
 
 1. Go to **Clean Air**.
 2. Pick an element type from the tabs along the top. Entries is selected by default.
-3. Pick a **Source** — a section, a volume, a group, a product type. Leave it on *All sources* to
-   search everything you have permission to see.
+3. Pick a **Source** — a section, a volume, a group, a product type. *All sources* searches
+   everything, and is only offered to people who can see every source of that type.
 4. Press **Add a condition**, choose a field, and choose an operator. The operators offered are the
    ones that make sense for that field's value.
 5. Press **Run filter**.
@@ -77,8 +77,10 @@ Clean Air installs with its own permissions, all off by default except for admin
 | — Edit and delete other people's shared filters | Managing shared filters |
 | Import filters from CP Filters | Running the importer |
 
-Clean Air never widens anybody's access. Every query goes through Craft, so a user who cannot see a
-section cannot see its entries here either, whatever these permissions say.
+Clean Air never widens anybody's access. An element type only appears for someone who can see it in
+Craft, a source only appears if they can view it, and *All sources* is only offered when they can
+view every source of that type. The count, export and save actions check the same things as the
+builder, so an edited request cannot reach any further than the screen does.
 
 ## Coming from CP Filters
 
