@@ -38,8 +38,22 @@ class SavedFiltersController extends Controller
             'filters' => $plugin->savedFilters->all(),
             'currentUser' => $currentUser,
             'canShare' => $plugin->permissions->canShare(),
+            'canSchedule' => $plugin->permissions->canScheduleReports(),
+            'reports' => $this->reportsByFilter(),
             'isPro' => $plugin->isPro(),
         ]);
+    }
+
+    /** @return array<int, \justinholtweb\cleanair\models\Report> */
+    private function reportsByFilter(): array
+    {
+        $byFilter = [];
+
+        foreach (Plugin::getInstance()->reports->all() as $report) {
+            $byFilter[(int)$report->filterId] = $report;
+        }
+
+        return $byFilter;
     }
 
     /**

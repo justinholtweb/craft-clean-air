@@ -34,6 +34,7 @@ Clean Air has two editions. Lite is free and is not a trial.
 | All operators | ● | ● |
 | Match **all** conditions | ● | ● |
 | Match **any** condition | | ● |
+| Condition groups | | ● |
 | Saved filters | 10 per person | Unlimited |
 | Shared filters | | ● |
 | Column chooser | | ● |
@@ -41,6 +42,7 @@ Clean Air has two editions. Lite is free and is not a trial.
 | TSV, JSON, XML export | | ● |
 | Queued exports | | ● |
 | Console commands | | ● |
+| Scheduled email reports | | ● |
 | `craft.cleanair` in templates | | ● |
 | Clean Air Filter field | | ● |
 | Import from CP Filters | ● | ● |
@@ -75,12 +77,25 @@ Clean Air installs with its own permissions, all off by default except for admin
 | Save filters | Keeping filters |
 | — Share filters with everyone | Making a filter visible to others |
 | — Edit and delete other people's shared filters | Managing shared filters |
+| — Email saved filters on a schedule | Setting up scheduled reports (Pro; needs *Export results* too) |
 | Import filters from CP Filters | Running the importer |
 
 Clean Air never widens anybody's access. An element type only appears for someone who can see it in
 Craft, a source only appears if they can view it, and *All sources* is only offered when they can
 view every source of that type. The count, export and save actions check the same things as the
 builder, so an edited request cannot reach any further than the screen does.
+
+## Scheduled reports
+
+If you'll use [scheduled reports](usage#scheduled-reports), add one cron line:
+
+```sh
+*/15 * * * * php /path/to/craft cleanair/reports/send
+```
+
+Each report goes once per period however often this runs. Without it, reports are still sent —
+the end of a web request queues any that are due, at most every five minutes — just less
+punctually on a quiet site.
 
 ## Coming from CP Filters
 

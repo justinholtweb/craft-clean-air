@@ -4,9 +4,11 @@ namespace justinholtweb\cleanair\migrations;
 
 use craft\db\Migration;
 use craft\db\Table;
+use justinholtweb\cleanair\services\Reports;
 
 /**
- * Two tables: the filters people keep, and the exports they asked the queue to build.
+ * Three tables: the filters people keep, the exports they asked for, and the schedules that
+ * email a filter's results.
  *
  * Nothing here touches content. Uninstalling Clean Air takes its own filters with it and
  * leaves the site exactly as it found it.
@@ -15,6 +17,7 @@ class Install extends Migration
 {
     public const TABLE_FILTERS = '{{%cleanair_filters}}';
     public const TABLE_EXPORTS = '{{%cleanair_exports}}';
+    public const TABLE_REPORTS = '{{%cleanair_reports}}';
 
     public function safeUp(): bool
     {
@@ -73,11 +76,16 @@ class Install extends Migration
             $this->addForeignKey(null, self::TABLE_EXPORTS, ['filterId'], self::TABLE_FILTERS, ['id'], 'SET NULL', null);
         }
 
+        if (!$this->db->tableExists(self::TABLE_REPORTS)) {
+            Reports::createTable($this);
+        }
+
         return true;
     }
 
     public function safeDown(): bool
     {
+        $this->dropTableIfExists(self::TABLE_REPORTS);
         $this->dropTableIfExists(self::TABLE_EXPORTS);
         $this->dropTableIfExists(self::TABLE_FILTERS);
         return true;

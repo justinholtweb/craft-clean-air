@@ -1,0 +1,205 @@
+{% extends "_layouts/cp" %}
+{% import "_includes/forms" as forms %}
+
+{% set title = "Email “{name}”"|t('cleanair', { name: saved.name }) %}
+{% set selectedSubnavItem = 'saved' %}
+{% set crumbs = [
+    { label: "Saved filters"|t('cleanair'), url: url('cleanair/saved') },
+] %}
+
+{% do view.registerAssetBundle("justinholtweb\\cleanair\\web\\assets\\cp\\CleanAirAsset") %}
+
+{% set weekdays = [] %}
+{% for day in 1..7 %}
+    {% set weekdays = weekdays|merge([{ label: craft.app.locale.getWeekDayName(day % 7), value: day }]) %}
+{% endfor %}
+
+{% set monthDays = [] %}
+{% for day in 1..28 %}
+    {% set monthDays = monthDays|merge([{ label: day, value: day }]) %}
+{% endfor %}
+
+{% set hours = [] %}
+{% for hour in 0..23 %}
+    {% set hours = hours|merge([{ label: '%02d:00'|format(hour), value: hour }]) %}
+{% endfor %}
+
+{% set formatOptions = [] %}
+{% for value, label in formats %}
+    {% set formatOptions = formatOptions|merge([{ label: label, value: value }]) %}
+{% endfor %}
+
+{% block content %}
+
+    <form method="post" accept-charset="UTF-8">
+        {{ csrfInput() }}
+        {{ actionInput('cleanair/reports/save') }}
+        {{ hiddenInput('filterId', saved.id) }}
+
+        <p class="light">
+            {{ "Runs the saved filter “{name}” ({type}) and emails the results. It runs with the permissions of whoever saves this schedule — you, when you press Save."|t('cleanair', { name: saved.name, type: typeLabel }) }}
+        </p>
+
+        {{ forms.lightswitchField({
+            label: "Enabled"|t('cleanair'),
+            id: 'report-enabled',
+            name: 'report[enabled]',
+            on: report.enabled,
+        }) }}
+
+        {{ forms.selectField({
+            label: "How often"|t('cleanair'),
+            id: 'report-frequency',
+            name: 'report[frequency]',
+            value: report.frequency,
+            toggle: true,
+            targetPrefix: 'report-frequency-',
+            options: [
+                { label: "Daily"|t('cleanair'), value: 'daily' },
+                { label: "Weekly"|t('cleanair'), value: 'weekly' },
+                { label: "Monthly"|t('cleanair'), value: 'monthly' },
+            ],
+            errors: report.getErrors('frequency'),
+        }) }}
+
+        <div id="report-frequency-weekly"{% if report.frequency != 'weekly' %} class="hidden"{% endif %}>
+            {{ forms.selectField({
+                label: "On"|t('cleanair'),
+                id: 'report-weekday',
+                name: 'report[weekday]',
+                value: report.weekday,
+                options: weekdays,
+                errors: report.getErrors('weekday'),
+            }) }}
+        </div>
+
+        <div id="report-frequency-monthly"{% if report.frequency != 'monthly' %} class="hidden"{% endif %}>
+            {{ forms.selectField({
+                label: "On day"|t('cleanair'),
+                instructions: "Up to the 28th, so every month has one."|t('cleanair'),
+                id: 'report-monthDay',
+                name: 'report[monthDay]',
+                value: report.monthDay,
+                options: monthDays,
+                errors: report.getErrors('monthDay'),
+            }) }}
+        </div>
+
+        {{ forms.selectField({
+            label: "At"|t('cleanair'),
+            instructions: "In the system time zone ({tz}). It goes at the first run of `cleanair/reports/send` on or after this hour."|t('cleanair', { tz: craft.app.getTimeZone() }),
+            id: 'report-hour',
+            name: 'report[hour]',
+            value: report.hour,
+            options: hours,
+            errors: report.getErrors('hour'),
+        }) }}
+
+        {{ forms.elementSelectField({
+            label: "Send to"|t('cleanair'),
+            instructions: "Control panel users only. Each of them has to be able to run this filter and export it themselves — a report never tells anyone something they couldn’t find out in Clean Air."|t('cleanair'),
+            id: 'report-recipientIds',
+            name: 'report[recipientIds]',
+            elementType: 'craft\\elements\\User',
+            elements: recipients,
+            selectionLabel: "Choose people"|t('cleanair'),
+            errors: report.getErrors('recipientIds'),
+        }) }}
+
+        {{ forms.selectField({
+            label: "Format"|t('cleanair'),
+            id: 'report-format',
+            name: 'report[format]',
+            value: report.format,
+            options: formatOptions,
+            errors: report.getErrors('format'),
+        }) }}
+
+        {{ forms.selectField({
+            label: "Send it"|t('cleanair'),
+            id: 'report-sendWhen',
+            name: 'report[sendWhen]',
+            value: report.sendWhen,
+            options: [
+                { label: "Only when the filter matches something"|t('cleanair'), value: 'results' },
+                { label: "Only when it matches something the last report didn’t"|t('cleanair'), value: 'new' },
+                { label: "Every time, even when it matches nothing"|t('cleanair'), value: 'always' },
+            ],
+            errors: report.getErrors('sendWhen'),
+        }) }}
+
+        {% if personal %}
+            {{ forms.selectField({
+                label: "Delivery"|t('cleanair'),
+                id: 'report-delivery',
+                name: 'report[delivery]',
+                value: 'link',
+                disabled: true,
+                options: [{ label: "A copy on each person’s Exports screen, linked from the email"|t('cleanair'), value: 'link' }],
+                tip: "{type} are personal data, so they are never attached to an email and never listed in one."|t('cleanair', { type: typeLabel }),
+            }) }}
+        {% else %}
+            {{ forms.selectField({
+                label: "Delivery"|t('cleanair'),
+                instructions: "Files over {mb} MB are put on the Exports screen and linked instead of attached."|t('cleanair', { mb: plugin.getSettings().reportAttachmentLimit }),
+                id: 'report-delivery',
+                name: 'report[delivery]',
+                value: report.delivery,
+                options: [
+                    { label: "Attach the file"|t('cleanair'), value: 'attach' },
+                    { label: "A copy on each person’s Exports screen, linked from the email"|t('cleanair'), value: 'link' },
+                ],
+                errors: report.getErrors('delivery'),
+            }) }}
+        {% endif %}
+
+        <div class="buttons">
+            <button type="submit" class="btn submit">{{ "Save"|t('app') }}</button>
+        </div>
+    </form>
+
+    {% if report.id %}
+        <hr>
+
+        <h2>{{ "Status"|t('cleanair') }}</h2>
+        <p class="light">
+            {{ report.describe() }}.
+            {% if owner %}
+                {{ "Runs as {user}."|t('cleanair', { user: owner.getName() }) }}
+            {% else %}
+                {{ "Whoever set it up no longer has an account, so it won’t run until someone saves it again."|t('cleanair') }}
+            {% endif %}
+            {% if report.lastRunAt %}
+                {{ "Last run {date}: {result}."|t('cleanair', { date: report.lastRunAt|datetime('short'), result: report.lastResult }) }}
+            {% endif %}
+            {% if report.lastSentAt %}
+                {{ "Last sent {date}, {count} results."|t('cleanair', { date: report.lastSentAt|datetime('short'), count: report.lastCount|number }) }}
+            {% endif %}
+            {% if nextDue %}
+                {{ "Next due {date}."|t('cleanair', { date: nextDue|datetime('short') }) }}
+            {% elseif not report.enabled %}
+                {{ "Switched off."|t('cleanair') }}
+            {% endif %}
+        </p>
+
+        {# Separate forms, after the schedule's own — never inside it. #}
+        <form method="post" accept-charset="UTF-8" class="cleanair-inline-form">
+            {{ csrfInput() }}
+            {{ actionInput('cleanair/reports/send-test') }}
+            {{ hiddenInput('filterId', saved.id) }}
+            <button type="submit" class="btn">{{ "Send me a test now"|t('cleanair') }}</button>
+        </form>
+
+        <form method="post" accept-charset="UTF-8" class="cleanair-inline-form">
+            {{ csrfInput() }}
+            {{ actionInput('cleanair/reports/delete') }}
+            {{ hiddenInput('filterId', saved.id) }}
+            <button type="submit" class="btn delete">{{ "Remove schedule"|t('cleanair') }}</button>
+        </form>
+
+        <p class="light smalltext">
+            {{ "The test comes to you, run with your permissions and marked as a test. It doesn’t count as this period’s report."|t('cleanair') }}
+        </p>
+    {% endif %}
+
+{% endblock %}

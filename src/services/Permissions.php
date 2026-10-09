@@ -25,6 +25,7 @@ class Permissions extends Component
     public const SHARE = 'cleanair:share';
     public const MANAGE_SHARED = 'cleanair:manageShared';
     public const IMPORT = 'cleanair:import';
+    public const SCHEDULE = 'cleanair:scheduleReports';
 
     /** Per-element-type permission, e.g. `cleanair:type:entries`. */
     public static function typePermission(string $typeKey): string
@@ -118,6 +119,25 @@ class Permissions extends Component
         }
 
         return $user !== null && ($user->admin || $user->can(self::SHARE));
+    }
+
+    /**
+     * Setting up a scheduled report, and sending a test of one. Pro only, and only for someone
+     * who can also save filters and export — a report is a saved filter exported on a timer.
+     */
+    public function canScheduleReports(?User $user = null): bool
+    {
+        $user = $this->user($user);
+
+        if ($user === null || !Edition::allowsScheduledReports(Plugin::getInstance()->isPro())) {
+            return false;
+        }
+
+        if (!$this->canSave($user) || !$this->canExport($user)) {
+            return false;
+        }
+
+        return $user->admin || $user->can(self::SCHEDULE);
     }
 
     public function canImport(?User $user = null): bool

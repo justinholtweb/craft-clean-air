@@ -35,7 +35,7 @@
              data-type-key="{{ typeKey }}"
              data-count-action="{{ actionUrl('cleanair/filters/count') }}"
              data-row-action="{{ actionUrl('cleanair/filters/criterion-row') }}"
-             data-next-index="{{ rows|length }}">
+             data-next-index="{{ nextIndex }}">
 
             <div class="cleanair-toolbar">
                 {% if sources|length %}
@@ -122,32 +122,60 @@
 
             <div class="cleanair-criteria" data-cleanair-criteria>
                 {% for row in rows %}
-                    {% include 'cleanair/_partials/criterion-row' with {
-                        index: row.index,
-                        criterion: row.criterion,
-                        definition: row.definition,
-                        operators: row.operators,
-                        operator: row.operator,
-                        value: row.value,
-                        value2: row.value2,
-                        dateValue: row.dateValue,
-                        dateValue2: row.dateValue2,
-                        valueElements: row.valueElements,
-                        grouped: grouped
-                    } only %}
+                    {% if row.group %}
+                        {% include 'cleanair/_partials/criterion-group' with {
+                            index: row.index,
+                            name: row.name,
+                            matchMode: row.matchMode,
+                            children: row.children,
+                            grouped: grouped
+                        } only %}
+                    {% else %}
+                        {% include 'cleanair/_partials/criterion-row' with {
+                            index: row.index,
+                            name: row.name,
+                            criterion: row.criterion,
+                            definition: row.definition,
+                            operators: row.operators,
+                            operator: row.operator,
+                            value: row.value,
+                            value2: row.value2,
+                            dateValue: row.dateValue,
+                            dateValue2: row.dateValue2,
+                            valueElements: row.valueElements,
+                            grouped: grouped
+                        } only %}
+                    {% endif %}
                 {% endfor %}
             </div>
 
             <template data-cleanair-row-template>
                 {% include 'cleanair/_partials/criterion-row' with {
                     index: '__INDEX__',
+                    name: '__NAME__',
                     criterion: null,
                     grouped: grouped
                 } only %}
             </template>
 
+            {% if allowGroups %}
+                <template data-cleanair-group-template>
+                    {% include 'cleanair/_partials/criterion-group' with {
+                        index: '__INDEX__',
+                        name: '__NAME__',
+                        matchMode: 'any',
+                        children: [],
+                        grouped: grouped
+                    } only %}
+                </template>
+            {% endif %}
+
             <div class="cleanair-actions">
                 <button type="button" class="btn add icon" data-cleanair-add>{{ 'Add a condition'|t('cleanair') }}</button>
+
+                {% if allowGroups %}
+                    <button type="button" class="btn add icon" data-cleanair-add-group>{{ 'Add a group'|t('cleanair') }}</button>
+                {% endif %}
 
                 <button type="submit" class="btn submit">{{ 'Run filter'|t('cleanair') }}</button>
 

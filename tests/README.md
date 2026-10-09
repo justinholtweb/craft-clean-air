@@ -35,6 +35,17 @@ Three checks are reported as **skipped** rather than run: Craft's own date picke
 selector macros call methods that only exist on a web request. Those are covered by loading
 the real control panel pages instead.
 
+### Scheduled reports and condition groups
+
+```sh
+ddev exec php /var/www/craft-cleanair/tests/integration/reports.php        # schedule, marker, runs-as, recipients, email, fallback, console
+ddev exec php /var/www/craft-cleanair/tests/integration/reports-http.php   # schedule endpoints: permission, POST, CSRF, cooldown; group markup
+```
+
+`reports.php` sends to a null transport, captures mail from the mailer's own event, captures (and
+skips) queue pushes, and drives every run with an explicit time — never the clock. Condition
+groups against known data are in `checks.php`.
+
 ### The control panel
 
 The console suite can't exercise the pages themselves. To check those, load them as an admin
@@ -44,6 +55,7 @@ and look for a 200 with no exception in the body:
 /admin/cleanair
 /admin/cleanair/type/<typeKey>
 /admin/cleanair/saved
+/admin/cleanair/saved/<id>/report
 /admin/cleanair/exports
 /admin/cleanair/import
 /admin/settings/plugins/cleanair

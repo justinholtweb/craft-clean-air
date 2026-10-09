@@ -22,6 +22,7 @@
                     <th scope="col">{{ 'Owner'|t('cleanair') }}</th>
                     <th scope="col">{{ 'Visibility'|t('cleanair') }}</th>
                     <th scope="col">{{ 'Last run'|t('cleanair') }}</th>
+                    {% if isPro %}<th scope="col">{{ 'Emailed'|t('cleanair') }}</th>{% endif %}
                     <th scope="col" class="thin"></th>
                 </tr>
             </thead>
@@ -44,6 +45,17 @@
                             {% endif %}
                         </td>
                         <td class="light">{{ filter.dateLastRun ? filter.dateLastRun|datetime('short') : '—' }}</td>
+                        {% if isPro %}
+                            {% set report = reports[filter.id] ?? null %}
+                            <td class="light">
+                                {% if report %}
+                                    {% if report.enabled %}<span class="status green"></span>{% else %}<span class="status"></span>{% endif %}
+                                    {{ report.describe() }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                        {% endif %}
                         <td class="thin nowrap">
                             {% if plugin.permissions.canWriteFilter(filter) %}
                                 <form method="post" style="display:inline">
@@ -52,6 +64,10 @@
                                     <input type="hidden" name="id" value="{{ filter.id }}">
                                     <button type="submit" class="btn small">{{ filter.pinned ? 'Unpin'|t('cleanair') : 'Pin'|t('cleanair') }}</button>
                                 </form>
+                            {% endif %}
+
+                            {% if canSchedule and plugin.permissions.canWriteFilter(filter) %}
+                                <a class="btn small" href="{{ url('cleanair/saved/' ~ filter.id ~ '/report') }}">{{ (reports[filter.id] ?? null) ? 'Schedule'|t('cleanair') : 'Email…'|t('cleanair') }}</a>
                             {% endif %}
 
                             <form method="post" style="display:inline">

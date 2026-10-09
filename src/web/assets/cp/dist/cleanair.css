@@ -63,6 +63,25 @@
     color: var(--medium-text-color, #606d7b);
 }
 
+.cleanair-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: 1px dashed var(--hairline-color, rgba(51, 64, 77, 0.25));
+    border-radius: var(--small-border-radius, 3px);
+    padding: 8px;
+}
+
+.cleanair-group__head {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.cleanair-group__label {
+    font-weight: 600;
+}
+
 .cleanair-actions {
     display: flex;
     flex-wrap: wrap;
@@ -150,4 +169,9 @@
 
 .cleanair-criterion__inputs {
     display: contents;
+}
+
+.cleanair-inline-form {
+    display: inline-block;
+    margin: 0 8px 8px 0;
 }

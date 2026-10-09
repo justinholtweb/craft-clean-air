@@ -110,7 +110,31 @@ craft cleanair/filters/export stale-drafts --format=csv --path=/tmp/report.csv
 craft cleanair/exports/prune                  # housekeeping
 ```
 
-Which is how a saved filter becomes a scheduled report.
+`craft cleanair/reports/send` and `cleanair/reports/status` drive scheduled reports — see
+below.
+
+### Scheduled reports
+
+On **Saved filters**, press **Email…** on a filter and choose daily, weekly or monthly, a day and
+an hour, the people it goes to, the format, and whether to send every time, only when it matches
+something, or only when it matches something the last report didn't. "Stale drafts every Monday
+at eight" without anyone writing cron and mail plumbing.
+
+A report runs with the permissions of whoever set it up, and goes only to control panel users
+who could have run the filter and exported it themselves. Results are attached — except users,
+addresses and orders, which are never attached to or listed in an email: each recipient gets a
+copy on their own Exports screen, behind a login. Each report remembers what it sent, so "only
+new" means new since last time, and runs once per period however often the scheduler fires.
+
+Run `craft cleanair/reports/send` from cron every 15–60 minutes. Without cron, the end of a web
+request queues any report that's due, at most every five minutes. **Send me a test now** shows
+you exactly what the next one will say.
+
+### Condition groups
+
+One level of grouping, each group with its own `all`/`any`: *in Products* AND (*no image* OR *no
+price*) is one filter rather than two. A group is evaluated the same way `match any` is, so the
+same ceiling applies — per group, and the warning says which group hit it.
 
 ### From a template
 
@@ -130,7 +154,8 @@ field for its elements:
 
 The filter's conditions can then change without a deploy.
 
-*Console commands, the Twig variable and the field type are Pro features.*
+*Console commands, scheduled reports, condition groups, the Twig variable and the field type
+are Pro features.*
 
 ## Importing from CP Filters
 
@@ -201,6 +226,7 @@ meant an editor could never widen their own view without a deploy.
 | All operators | ● | ● |
 | Match **all** conditions | ● | ● |
 | Match **any** condition | | ● |
+| Condition groups | | ● |
 | Saved filters | 10 per person | Unlimited |
 | Shared filters | | ● |
 | Column chooser | | ● |
@@ -208,6 +234,7 @@ meant an editor could never widen their own view without a deploy.
 | TSV, JSON, XML export | | ● |
 | Queued exports | | ● |
 | Console commands | | ● |
+| Scheduled email reports | | ● |
 | `craft.cleanair` in templates | | ● |
 | Clean Air Filter field | | ● |
 | **Import from CP Filters** | ● | ● |
@@ -226,6 +253,8 @@ Event::on(Types::class, Types::EVENT_REGISTER_TYPES, function(RegisterTypesEvent
 ```
 
 `Types::EVENT_REGISTER_TYPES` adds or replaces an element type driver.
+`Reports::EVENT_BEFORE_SEND` fires before each scheduled or test report: change the subject,
+the recipients (each is checked again) or the template variables, or cancel it.
 `Fields::EVENT_DEFINE_FIELD_DEFINITION` fires per custom field, to correct the value shape
 Clean Air inferred or to hide a field from the builder entirely.
 

@@ -488,6 +488,111 @@ check('two conditions on one field still AND', titlesFor(fixtureFilter([
     ['field' => 'caScore', 'operator' => 'lte', 'value' => 50],
 ])) === ['Alpha, One', 'Beta Two']);
 
+// ---------------------------------------------------------------------------
+section('Condition groups');
+// ---------------------------------------------------------------------------
+
+/** A group criterion row. */
+function group(string $matchMode, array $criteria): array
+{
+    return ['type' => 'group', 'matchMode' => $matchMode, 'criteria' => $criteria];
+}
+
+check('all, with an any group: on AND (apple OR score at least 100)', titlesFor(fixtureFilter([
+    ['field' => 'caFlag', 'operator' => 'isTrue'],
+    group('any', [
+        ['field' => 'caPick', 'operator' => 'eq', 'value' => 'apple'],
+        ['field' => 'caScore', 'operator' => 'gte', 'value' => 100],
+    ]),
+])) === ['Alpha, One', 'Gamma Three']);
+
+check('an any group narrows like any other condition', titlesFor(fixtureFilter([
+    ['field' => 'caSummary', 'operator' => 'contains', 'value' => 'hello'],
+    group('any', [
+        ['field' => 'caPick', 'operator' => 'eq', 'value' => 'cherry'],
+        ['field' => 'caScore', 'operator' => 'lt', 'value' => 20],
+    ]),
+])) === ['Alpha, One']);
+
+check('two any groups must both hold', titlesFor(fixtureFilter([
+    group('any', [
+        ['field' => 'caPick', 'operator' => 'eq', 'value' => 'apple'],
+        ['field' => 'caPick', 'operator' => 'eq', 'value' => 'banana'],
+    ]),
+    group('any', [
+        ['field' => 'caFlag', 'operator' => 'isTrue'],
+        ['field' => 'caScore', 'operator' => 'gte', 'value' => 50],
+    ]),
+])) === ['Alpha, One', 'Beta Two']);
+
+check('any, with an all group: cherry OR (world AND off)', titlesFor(fixtureFilter([
+    ['field' => 'caPick', 'operator' => 'eq', 'value' => 'cherry'],
+    group('all', [
+        ['field' => 'caSummary', 'operator' => 'contains', 'value' => 'world'],
+        ['field' => 'caFlag', 'operator' => 'isFalse'],
+    ]),
+], ['matchMode' => 'any'])) === ['Beta Two', 'Gamma Three']);
+
+check('any, with an any group: the union of everything', titlesFor(fixtureFilter([
+    ['field' => 'caScore', 'operator' => 'lt', 'value' => 20],
+    group('any', [
+        ['field' => 'caPick', 'operator' => 'eq', 'value' => 'banana'],
+        ['field' => 'caPick', 'operator' => 'eq', 'value' => 'cherry'],
+    ]),
+], ['matchMode' => 'any'])) === ['Alpha, One', 'Beta Two', 'Gamma Three']);
+
+check('an all group is the same as writing its conditions at the top', titlesFor(fixtureFilter([
+    group('all', [
+        ['field' => 'caSummary', 'operator' => 'contains', 'value' => 'hello'],
+        ['field' => 'caFlag', 'operator' => 'isTrue'],
+    ]),
+])) === ['Alpha, One']);
+
+check('a group with one condition is that condition', titlesFor(fixtureFilter([
+    group('any', [['field' => 'caPick', 'operator' => 'eq', 'value' => 'apple']]),
+])) === ['Alpha, One', 'Delta Four']);
+
+$grouped = FilterSet::fromArray(['elementType' => Entry::class, 'criteria' => [
+    ['field' => 'title', 'operator' => 'eq', 'value' => 'x'],
+    group('any', [
+        ['field' => 'title', 'operator' => 'eq', 'value' => 'y'],
+        group('any', [['field' => 'title', 'operator' => 'eq', 'value' => 'z']]),
+        ['field' => '', 'operator' => ''],
+    ]),
+    group('all', [['field' => '', 'operator' => '']]),
+]]);
+$groupedArray = $grouped->toArray();
+
+check('groups survive a save and reload', FilterSet::fromArray($groupedArray)->toArray() === $groupedArray);
+check('groups go one level deep: a group inside a group is dropped', count($grouped->criteria[1]->criteria) === 1 && !$grouped->criteria[1]->criteria[0]->isGroup());
+check('a group with nothing complete in it is dropped', count($grouped->criteria) === 2);
+check('a plain condition is stored exactly as before groups existed', !array_key_exists('type', $groupedArray['criteria'][0]));
+check('the filter knows it has groups', $grouped->hasGroups() && !fixtureFilter([['field' => 'title', 'operator' => 'eq', 'value' => 'x']])->hasGroups());
+
+// The match-any ceiling applies per group, and the warning says which group.
+$limitBefore = $plugin->getSettings()->anyMatchIdLimit;
+$plugin->getSettings()->anyMatchIdLimit = 1;
+$groupWarnings = [];
+$plugin->query->build(fixtureFilter([
+    ['field' => 'caFlag', 'operator' => 'isFalse'],
+    group('any', [
+        ['field' => 'caPick', 'operator' => 'eq', 'value' => 'apple'],
+        ['field' => 'caPick', 'operator' => 'eq', 'value' => 'banana'],
+    ]),
+]), $groupWarnings);
+$plugin->getSettings()->anyMatchIdLimit = $limitBefore;
+check('a truncated group says which group it was', (bool)array_filter($groupWarnings, fn($w) => str_contains($w, 'Group 1')), json_encode($groupWarnings));
+
+// Lite reading a filter saved on Pro: ignoring the group would widen the result, so it matches nothing.
+$plugin->edition = Plugin::EDITION_LITE;
+$liteWarnings = [];
+$liteCount = (int)$plugin->query->build(fixtureFilter([
+    group('any', [['field' => 'caPick', 'operator' => 'eq', 'value' => 'apple'], ['field' => 'caPick', 'operator' => 'eq', 'value' => 'banana']]),
+]), $liteWarnings)->count();
+$plugin->edition = Plugin::EDITION_PRO;
+check('on Lite a grouped filter matches nothing, and says why', $liteCount === 0 && (bool)array_filter($liteWarnings, fn($w) => str_contains($w, 'Pro')));
+check('Lite has no condition groups; Pro does', !Edition::allowsConditionGroups(false) && Edition::allowsConditionGroups(true));
+
 check('the section source covers the entry type', count(titlesFor(fixtureFilter([], ['source' => 'section:' . $section->id]))) === 4);
 
 // "All sources" adds no source condition, so it must only be offered to someone who can see every
@@ -835,6 +940,10 @@ foreach ([
     'cleanair/_partials/results',
     'cleanair/_partials/criterion-row',
     'cleanair/_partials/criterion-inputs',
+    'cleanair/_partials/criterion-group',
+    'cleanair/reports/edit',
+    'cleanair/_emails/report',
+    'cleanair/_emails/report.txt',
 ] as $template) {
     $compiled = true;
     $error = '';

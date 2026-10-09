@@ -107,6 +107,21 @@ class Settings extends Model
     public bool $shareableUrls = true;
 
     /**
+     * @var bool Whether the end of a control panel or site request may queue scheduled reports
+     *           that are due — the fallback for sites without a cron job running
+     *           `cleanair/reports/send`. Looks at the schedules at most every five minutes.
+     *           Pro only.
+     */
+    public bool $reportWebTrigger = true;
+
+    /**
+     * @var int Largest file, in MB, a scheduled report will attach to an email. Bigger ones —
+     *          and every report of people, addresses or orders, whatever its size — are put
+     *          on the recipient's Exports screen and linked instead. 0 never attaches.
+     */
+    public int $reportAttachmentLimit = 5;
+
+    /**
      * @var string Log level for Clean Air's own log target.
      */
     public string $logLevel = LogLevel::WARNING;
@@ -115,7 +130,7 @@ class Settings extends Model
     {
         return [
             [['resultsPerPage', 'exportBatchSize'], 'integer', 'min' => 1],
-            [['maxExportRows', 'queueExportThreshold', 'exportRetentionDays', 'anyMatchIdLimit'], 'integer', 'min' => 0],
+            [['maxExportRows', 'queueExportThreshold', 'exportRetentionDays', 'anyMatchIdLimit', 'reportAttachmentLimit'], 'integer', 'min' => 0],
             [['csvDelimiter'], 'string', 'min' => 1, 'max' => 1],
         ];
     }

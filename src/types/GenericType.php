@@ -46,4 +46,10 @@ class GenericType extends BaseType
         $class = $this->class;
         return Craft::t('cleanair', '{type}', ['type' => $class::pluralDisplayName()]);
     }
+
+    /** An element type Clean Air knows nothing about could hold anything, so it is treated as personal data. */
+    public function containsPersonalData(): bool
+    {
+        return true;
+    }
 }

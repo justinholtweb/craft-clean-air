@@ -6,6 +6,7 @@ use Craft;
 use craft\helpers\UrlHelper;
 use craft\web\Controller;
 use craft\web\View;
+use justinholtweb\cleanair\models\Criterion;
 use justinholtweb\cleanair\models\Edition;
 use justinholtweb\cleanair\models\FilterSet;
 use justinholtweb\cleanair\models\SavedFilter;
@@ -76,6 +77,17 @@ class FiltersController extends Controller
             $results = $plugin->filters->results($filter, (int)$request->getParam('page', 1));
         }
 
+        $rows = $this->buildRows($type, $filter);
+
+        // New rows take indexes past every one in use, at the top level and inside groups, so
+        // the builder never posts the same input name twice.
+        $nextIndex = count($rows);
+        foreach ($rows as $row) {
+            if ($row['group']) {
+                $nextIndex = max($nextIndex, count($row['children']));
+            }
+        }
+
         return $this->renderTemplate('cleanair/index', [
             'plugin' => $plugin,
             'types' => $available,
@@ -85,7 +97,8 @@ class FiltersController extends Controller
             'allowAllSources' => $plugin->types->isAllowedSource($type, null),
             'definitions' => $definitions,
             'grouped' => $plugin->fields->grouped($type, $filter->source),
-            'rows' => $this->buildRows($type, $filter),
+            'rows' => $rows,
+            'nextIndex' => $nextIndex,
             'columnOptions' => $plugin->columns->available($type, $filter->source),
             'selectedColumns' => $plugin->columns->resolve($filter, $type),
             'filterId' => $request->getParam('filterId'),
@@ -97,6 +110,7 @@ class FiltersController extends Controller
             'canExport' => $plugin->permissions->canExport(),
             'canSave' => $plugin->permissions->canSave(),
             'canShare' => $plugin->permissions->canShare(),
+            'allowGroups' => Edition::allowsConditionGroups($plugin->isPro()),
             'shareUrl' => $ran ? $this->shareUrl($type, $filter) : null,
         ]);
     }
@@ -125,6 +139,13 @@ class FiltersController extends Controller
 
         $source = $request->getParam('source') ?: null;
         $index = (int)$request->getParam('index', 0);
+        $name = (string)$request->getParam('name', '');
+
+        // The input name prefix: a top-level row, or a row inside a group. Anything else falls
+        // back to the top-level name for this index.
+        if (!preg_match('/^filter\[criteria\]\[\d+\](\[criteria\]\[\d+\])?$/', $name)) {
+            $name = "filter[criteria][$index]";
+        }
         $handle = (string)$request->getParam('field');
         $operator = (string)$request->getParam('operator');
         $value = $request->getParam('value');
@@ -146,6 +167,7 @@ class FiltersController extends Controller
                 'operators' => $operators,
                 'operator' => $operator,
                 'index' => $index,
+                'name' => $name,
                 'value' => $value,
                 'value2' => $value2,
                 'dateValue' => $this->toDate($value),
@@ -396,40 +418,65 @@ class FiltersController extends Controller
     /**
      * Prepares each criterion for rendering: its definition, the operators that apply to it,
      * and the values already chosen — resolved into elements or dates where the input needs
-     * them rather than left as raw IDs and strings.
+     * them rather than left as raw IDs and strings. A group becomes a row holding rows.
      */
     private function buildRows(BaseType $type, FilterSet $filter): array
     {
-        $plugin = Plugin::getInstance();
         $rows = [];
 
         foreach ($filter->criteria as $index => $criterion) {
-            $definition = $criterion->field
-                ? $plugin->fields->definition($type, $filter->source, $criterion->field)
-                : null;
+            $name = "filter[criteria][$index]";
 
-            $operators = $definition ? $plugin->operators->forField($definition) : [];
-            $operator = (string)$criterion->operator;
+            if ($criterion->isGroup()) {
+                $children = [];
+                foreach ($criterion->criteria as $childIndex => $child) {
+                    $children[] = $this->buildRow($type, $filter, $child, "{$name}[criteria][$childIndex]", $childIndex);
+                }
 
-            if ($operators && !isset($operators[$operator])) {
-                $operator = (string)array_key_first($operators);
+                $rows[] = [
+                    'group' => true,
+                    'index' => $index,
+                    'name' => $name,
+                    'matchMode' => $criterion->matchMode,
+                    'children' => $children,
+                ];
+                continue;
             }
 
-            $rows[] = [
-                'index' => $index,
-                'criterion' => $criterion,
-                'definition' => $definition,
-                'operators' => $operators,
-                'operator' => $operator,
-                'value' => $criterion->value,
-                'value2' => $criterion->value2,
-                'dateValue' => $this->toDate($criterion->value),
-                'dateValue2' => $this->toDate($criterion->value2),
-                'valueElements' => $plugin->fields->elementsForValue($definition, $criterion->value),
-            ];
+            $rows[] = $this->buildRow($type, $filter, $criterion, $name, $index);
         }
 
         return $rows;
+    }
+
+    private function buildRow(BaseType $type, FilterSet $filter, Criterion $criterion, string $name, int|string $index): array
+    {
+        $plugin = Plugin::getInstance();
+        $definition = $criterion->field
+            ? $plugin->fields->definition($type, $filter->source, $criterion->field)
+            : null;
+
+        $operators = $definition ? $plugin->operators->forField($definition) : [];
+        $operator = (string)$criterion->operator;
+
+        if ($operators && !isset($operators[$operator])) {
+            $operator = (string)array_key_first($operators);
+        }
+
+        return [
+            'group' => false,
+            'index' => $index,
+            'name' => $name,
+            'criterion' => $criterion,
+            'definition' => $definition,
+            'operators' => $operators,
+            'operator' => $operator,
+            'value' => $criterion->value,
+            'value2' => $criterion->value2,
+            'dateValue' => $this->toDate($criterion->value),
+            'dateValue2' => $this->toDate($criterion->value2),
+            'valueElements' => $plugin->fields->elementsForValue($definition, $criterion->value),
+        ];
     }
 
     /** Craft's date input wants a DateTime, not whatever the criterion happens to hold. */

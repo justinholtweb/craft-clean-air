@@ -72,13 +72,25 @@ want one.
 
 ## Can I run a saved filter on a schedule?
 
-Yes, on Pro:
+Yes, on Pro. On **Saved filters**, press **Email…** on the filter, choose when and who, and save.
+Run `craft cleanair/reports/send` from cron every 15–60 minutes (or let web requests trigger it).
+See [Scheduled reports](usage#scheduled-reports).
 
-```sh
-craft cleanair/filters/export stale-drafts --format=csv --path=/tmp/report.csv
-```
+To write the file somewhere yourself instead, `craft cleanair/filters/export stale-drafts
+--format=csv --path=/tmp/report.csv` still works from cron.
 
-Put that in cron and a saved filter is a scheduled report.
+## Who can a report be sent to?
+
+Control panel users only — no free-typed addresses — and only ones who could run that filter and
+export it themselves. A report runs with the permissions of whoever saved its schedule, and both
+they and every recipient are checked again each time it runs. Someone whose access has changed
+simply stops getting it, and the schedule's status says why.
+
+## Why wasn't my report of users attached?
+
+Users, addresses and orders are personal data, so they are never attached to an email or listed in
+one. Each recipient gets a copy of the file on their own **Exports** screen, and the email links
+there; they sign in to download it.
 
 ## Does Clean Air edit content?
 

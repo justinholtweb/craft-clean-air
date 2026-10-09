@@ -18,6 +18,38 @@ The README and `docs/` describe the product; this file is for working on it.
 - **Settings are project config.** Anything that writes them (the importer's "carry over CP Filters'
   settings") needs an admin with `allowAdminChanges` on.
 
+## Scheduled reports (Theme 7 port)
+
+Ported from Yarn's findings digest (craft-yarn `CLAUDE.md`, "Scheduled digests (reference for the
+family)"). Same rules — period keys (`Y-m-d`, ISO `o-\WW`, `Y-m`), claim with an atomic
+`UPDATE … WHERE period = :old`, release on failure or cancel, "new" = current IDs minus `seen`,
+cron + `EVENT_AFTER_REQUEST` fallback (never `Gc::EVENT_RUN`), one `helpers\Mailer`, a test send
+that never touches the marker. What differs:
+
+- **One marker row per report**, not one per plugin: `cleanair_reports` holds each saved filter's
+  schedule *and* its marker (`period`, `seen`, `last*`). `filterId` is unique and cascades.
+- **Runs as its owner.** `Query::build()` checks nothing (see above), so `Reports::canRun()` is the
+  gate: active account, view + export, can read the saved filter, type in `available($user)`,
+  `isAllowedSource($type, $source, $user)`. Asked of the owner and of every recipient on every run,
+  and again after `EVENT_BEFORE_SEND`. The owner is whoever last saved the schedule (the controller
+  sets `ownerId`, never the form).
+- **Personal data** (`BaseType::containsPersonalData()`: users, addresses, orders, generic types)
+  is never attached or listed; each recipient gets `Exports::copyFor()` — their own record + file,
+  because downloads are owner-only.
+- `seen` is a JSON ID list, or `"*"` past `SEEN_LIMIT` (then "new" is unknown, not "nothing").
+- The test send goes to the person pressing it, run as them — not to the list.
+- A schedule saved after this period's hour starts with this period claimed (`initialPeriod()`).
+
+## Condition groups
+
+`Criterion` with `type = group` holds `matchMode` + child criteria, one level deep (a nested group
+is dropped on read). Plain conditions serialise without a `type` key, so old saved filters read
+back unchanged. In `Query`: an `all` group applies its children to the query; an `any` group is a
+capped ID union intersected with `andWhere(['elements.id' => …])` — **not `id()`**, which a second
+group would overwrite. On Lite a filter with groups matches nothing (ignoring them would widen it).
+Builder inputs are named by each row's `data-name` prefix; `criterion-row` accepts a `name` but only
+in the two shapes the regex allows.
+
 ## Traps
 
 - **A curly quote straight after a variable in a double-quoted string is part of the variable's
@@ -38,8 +70,10 @@ at `/var/www/craft-cleanair` (and symlinked into the harness's vendor directory 
 `ls -la ~/Sites/plugin-testing/vendor/justinholtweb | grep cleanair`).
 
 ```sh
-docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/checks.php   # 213 + 3 skipped
+docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/checks.php   # 232 + 3 skipped
 docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/trust.php    # 5, a limited editor over HTTP
+docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/reports.php  # 49, scheduled reports
+docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/reports-http.php # 17, schedule endpoints + group markup
 docker exec -w /var/www/craft-cleanair ddev-plugin-testing-web bash -c 'vendor/bin/phpunit && vendor/bin/phpstan analyse --memory-limit=1G && vendor/bin/ecs check'
 ```
 

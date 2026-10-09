@@ -6,7 +6,8 @@
 
 {% import "_includes/forms" as forms %}
 
-{% set name = 'filter[criteria][' ~ index ~ ']' %}
+{# `name` is the input prefix: `filter[criteria][3]`, or `filter[criteria][3][criteria][0]` inside a group. #}
+{% set name = name ?? ('filter[criteria][' ~ index ~ ']') %}
 {% set operatorDefinition = definition ? operators[operator] ?? null : null %}
 {% set inputType = operatorDefinition ? operatorDefinition.input : 'none' %}
 

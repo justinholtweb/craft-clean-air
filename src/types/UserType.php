@@ -73,4 +73,10 @@ class UserType extends BaseType
     {
         return $user !== null && ($user->admin || $user->can('viewUsers'));
     }
+
+    /** Accounts: names and email addresses. */
+    public function containsPersonalData(): bool
+    {
+        return true;
+    }
 }

@@ -8,6 +8,11 @@
  * the operator menu when you change field, fetching the right value input, and keeping a
  * live count of what the filter would match while you're still writing it.
  *
+ * Groups (Pro) are a row holding rows: their own all/any, one level deep. Every input is named
+ * by its row's `data-name` prefix — `filter[criteria][3]` at the top level,
+ * `filter[criteria][3][criteria][0]` inside a group — so the form posts the nested shape
+ * without any of this having to serialise it.
+ *
  * Value inputs are rendered by the server rather than built here, so a relation criterion
  * gets Craft's own element selector, with its sources and its search, instead of a
  * half-working imitation.
@@ -21,6 +26,7 @@
         this.typeKey = container.getAttribute('data-type-key');
         this.criteria = container.querySelector('[data-cleanair-criteria]');
         this.template = container.querySelector('[data-cleanair-row-template]');
+        this.groupTemplate = container.querySelector('[data-cleanair-group-template]');
         this.countEl = container.querySelector('[data-cleanair-count]');
         this.countAction = container.getAttribute('data-count-action');
         this.rowAction = container.getAttribute('data-row-action');
@@ -38,7 +44,29 @@
             var add = event.target.closest('[data-cleanair-add]');
             if (add) {
                 event.preventDefault();
-                self.addRow();
+                self.addRow(self.criteria, null);
+                return;
+            }
+
+            var addGroup = event.target.closest('[data-cleanair-add-group]');
+            if (addGroup) {
+                event.preventDefault();
+                self.addGroup();
+                return;
+            }
+
+            var addToGroup = event.target.closest('[data-cleanair-add-to-group]');
+            if (addToGroup) {
+                event.preventDefault();
+                var group = addToGroup.closest('[data-cleanair-group]');
+                self.addRow(group.querySelector('[data-cleanair-group-criteria]'), group.getAttribute('data-name'));
+                return;
+            }
+
+            var removeGroup = event.target.closest('[data-cleanair-remove-group]');
+            if (removeGroup) {
+                event.preventDefault();
+                self.removeRow(removeGroup.closest('[data-cleanair-group]'));
                 return;
             }
 
@@ -80,20 +108,47 @@
         });
     };
 
-    CleanAir.prototype.addRow = function () {
-        if (!this.template) {
+    /**
+     * Adds a condition row to `target` — the top-level list, or a group's own list when
+     * `groupName` is that group's input prefix.
+     */
+    CleanAir.prototype.addRow = function (target, groupName) {
+        if (!this.template || !target) {
             return;
         }
 
-        var html = this.template.innerHTML.replace(/__INDEX__/g, String(this.nextIndex));
+        var index = String(this.nextIndex++);
+        var name = (groupName || 'filter') + '[criteria][' + index + ']';
+        var row = this.fromTemplate(this.template, name, index);
+
+        target.appendChild(row);
+        Craft.initUiElements($(row));
+    };
+
+    /** Adds a group, starting with one empty condition in it. */
+    CleanAir.prototype.addGroup = function () {
+        if (!this.groupTemplate) {
+            return;
+        }
+
+        var index = String(this.nextIndex++);
+        var name = 'filter[criteria][' + index + ']';
+        var group = this.fromTemplate(this.groupTemplate, name, index);
+
+        this.criteria.appendChild(group);
+        Craft.initUiElements($(group));
+        this.addRow(group.querySelector('[data-cleanair-group-criteria]'), name);
+        this.queueCount();
+    };
+
+    CleanAir.prototype.fromTemplate = function (template, name, index) {
+        var html = template.innerHTML
+            .replace(/__NAME__/g, name)
+            .replace(/__INDEX__/g, index);
         var wrapper = document.createElement('div');
         wrapper.innerHTML = html.trim();
 
-        var row = wrapper.firstElementChild;
-        this.criteria.appendChild(row);
-        this.nextIndex++;
-
-        Craft.initUiElements($(row));
+        return wrapper.firstElementChild;
     };
 
     CleanAir.prototype.removeRow = function (row) {
@@ -131,6 +186,7 @@
             typeKey: this.typeKey,
             source: this.sourceValue(),
             index: index,
+            name: row.getAttribute('data-name') || '',
             field: fieldEl.value,
             operator: resetOperator || !operatorEl ? '' : operatorEl.value
         };

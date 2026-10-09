@@ -97,4 +97,10 @@ class CommerceOrderType extends CommerceType
     {
         return $user !== null && ($user->admin || $user->can('commerce-manageOrders'));
     }
+
+    /** Orders carry customers, emails and addresses. */
+    public function containsPersonalData(): bool
+    {
+        return true;
+    }
 }

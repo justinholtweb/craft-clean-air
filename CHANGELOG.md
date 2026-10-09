@@ -1,5 +1,25 @@
 # Release Notes for Clean Air
 
+## Unreleased
+
+### Added
+
+- Scheduled email reports (Pro). Any saved filter can be emailed daily, weekly or monthly — press
+  **Email…** on the Saved filters screen — to control panel users, in any export format, every time
+  or only when it matches something (or something new since the last report). Each report runs with
+  the permissions of whoever saved its schedule, goes only to people who could run and export the
+  filter themselves, and never attaches or lists users, addresses or orders: those land on each
+  recipient's Exports screen instead.
+- `craft cleanair/reports/send` (for cron; each report sends once per period however often it runs)
+  and `craft cleanair/reports/status`. Without cron, web requests queue due reports at most every
+  five minutes (`reportWebTrigger`).
+- **Send me a test now** on a report's schedule screen.
+- The *Email saved filters on a schedule* permission, the `reportWebTrigger` and
+  `reportAttachmentLimit` settings, and `Reports::EVENT_BEFORE_SEND`.
+- Condition groups (Pro): a group of conditions with its own all/any, one level deep, so "in
+  Products AND (no image OR no price)" is one filter. The `match any` ceiling applies per group and
+  the warning names the group that hit it.
+
 ## 5.0.1 — 2026-09-28
 
 ### Security

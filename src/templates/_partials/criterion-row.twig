@@ -1,9 +1,11 @@
-{# One row of the filter. #}
+{# One row of the filter — at the top level, or inside a group. #}
 
-<div class="cleanair-criterion" data-cleanair-criterion data-index="{{ index }}">
+{% set name = name ?? ('filter[criteria][' ~ index ~ ']') %}
+
+<div class="cleanair-criterion" data-cleanair-criterion data-index="{{ index }}" data-name="{{ name }}">
     <div class="cleanair-criterion__field">
         <div class="select fullwidth">
-            <select name="filter[criteria][{{ index }}][field]" data-cleanair-field>
+            <select name="{{ name }}[field]" data-cleanair-field>
                 <option value="">{{ 'Choose a field…'|t('cleanair') }}</option>
                 {% for group, definitions in grouped %}
                     <optgroup label="{{ group|t('cleanair') }}">
@@ -25,6 +27,7 @@
                 operators: operators,
                 operator: operator,
                 index: index,
+                name: name,
                 value: value ?? null,
                 value2: value2 ?? null,
                 dateValue: dateValue ?? null,

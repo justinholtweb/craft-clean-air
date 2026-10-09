@@ -30,7 +30,7 @@ class FilterSet extends Model
     /** @var string `all` ANDs the criteria together; `any` ORs them. */
     public string $matchMode = self::MATCH_ALL;
 
-    /** @var Criterion[] */
+    /** @var Criterion[] Conditions, and (Pro) groups of conditions with their own all/any. */
     public array $criteria = [];
 
     /** @var string|null Free-text search, run through Craft's own search index. */
@@ -121,6 +121,18 @@ class FilterSet extends Model
     public function completeCriteria(): array
     {
         return array_values(array_filter($this->criteria, fn(Criterion $c) => $c->isComplete()));
+    }
+
+    /** Whether any criterion is a condition group — a Pro feature. */
+    public function hasGroups(): bool
+    {
+        foreach ($this->criteria as $criterion) {
+            if ($criterion->isGroup()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function toArray(array $fields = [], array $expand = [], $recursive = true): array

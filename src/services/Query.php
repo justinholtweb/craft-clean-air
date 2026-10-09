@@ -11,6 +11,7 @@ use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
 use craft\helpers\Db;
 use justinholtweb\cleanair\models\Criterion;
+use justinholtweb\cleanair\models\Edition;
 use justinholtweb\cleanair\models\FieldDefinition;
 use justinholtweb\cleanair\models\FilterSet;
 use justinholtweb\cleanair\Plugin;
@@ -54,11 +55,26 @@ class Query extends Component
         $query = $this->baseQuery($filter, $type);
         $criteria = $filter->completeCriteria();
 
+        // A filter saved on Pro and read on Lite. Ignoring its groups would *widen* the result —
+        // the dangerous direction — so it matches nothing and says why.
+        if ($filter->hasGroups() && !Edition::allowsConditionGroups(Plugin::getInstance()->isPro())) {
+            $warnings[] = Craft::t('cleanair', 'This filter uses condition groups, which are part of Clean Air Pro, so it matches nothing here.');
+            $this->matchNothing($query);
+            $this->applySort($query, $filter, $type);
+
+            return $query;
+        }
+
         if ($filter->matchMode === FilterSet::MATCH_ANY && count($criteria) > 1) {
             $this->applyAnyMatch($query, $filter, $type, $criteria, $warnings);
         } else {
+            $groupNumber = 0;
             foreach ($criteria as $criterion) {
-                $this->apply($query, $type, $filter->source, $criterion, $warnings);
+                if ($criterion->isGroup()) {
+                    $this->applyGroup($query, $filter, $type, $criterion, ++$groupNumber, $warnings);
+                } else {
+                    $this->apply($query, $type, $filter->source, $criterion, $warnings);
+                }
             }
         }
 
@@ -106,6 +122,9 @@ class Query extends Component
      * per criterion, and is capped, which is why it's a deliberate mode rather than the
      * default.
      *
+     * A group counts as one criterion here: an `all` group is one query with all of its
+     * conditions, an `any` group is a union of its own.
+     *
      * @param Criterion[] $criteria
      * @param string[] $warnings
      */
@@ -114,20 +133,19 @@ class Query extends Component
         $limit = Plugin::getInstance()->getSettings()->anyMatchIdLimit;
         $ids = [];
         $truncated = false;
+        $groupNumber = 0;
 
         foreach ($criteria as $criterion) {
-            $probe = $this->baseQuery($filter, $type);
-            $this->apply($probe, $type, $filter->source, $criterion, $warnings);
+            if ($criterion->isGroup()) {
+                $groupNumber++;
+                [$found, $groupTruncated] = $this->groupIds($filter, $type, $criterion, $warnings);
 
-            if ($limit > 0) {
-                $probe->limit($limit + 1);
-            }
-
-            $found = $probe->ids();
-
-            if ($limit > 0 && count($found) > $limit) {
-                $truncated = true;
-                $found = array_slice($found, 0, $limit);
+                if ($groupTruncated) {
+                    $warnings[] = $this->groupTruncatedWarning($groupNumber, $limit);
+                }
+            } else {
+                [$found, $itemTruncated] = $this->probeIds($filter, $type, [$criterion], $warnings);
+                $truncated = $truncated || $itemTruncated;
             }
 
             foreach ($found as $id) {
@@ -145,6 +163,108 @@ class Query extends Component
         }
 
         $query->id(array_keys($ids));
+    }
+
+    /**
+     * A group inside a `match all` filter. An `all` group is no different from its conditions
+     * written at the top level; an `any` group is evaluated to an ID set — the same union
+     * `match any` uses — and intersected with everything else.
+     *
+     * @param string[] $warnings
+     */
+    private function applyGroup(ElementQuery $query, FilterSet $filter, BaseType $type, Criterion $group, int $groupNumber, array &$warnings): void
+    {
+        $conditions = $group->completeCriteria();
+
+        if ($group->matchMode !== FilterSet::MATCH_ANY || count($conditions) === 1) {
+            foreach ($conditions as $condition) {
+                $this->apply($query, $type, $filter->source, $condition, $warnings);
+            }
+            return;
+        }
+
+        [$ids, $truncated] = $this->groupIds($filter, $type, $group, $warnings);
+
+        if ($truncated) {
+            $warnings[] = $this->groupTruncatedWarning($groupNumber, Plugin::getInstance()->getSettings()->anyMatchIdLimit);
+        }
+
+        if (!$ids) {
+            $this->matchNothing($query);
+            return;
+        }
+
+        // `andWhere`, not `id()`: two `any` groups in one filter must both hold, and a second
+        // `id()` would replace the first.
+        $query->andWhere(['elements.id' => $ids]);
+    }
+
+    /**
+     * The IDs a group matches on its own: one capped query for an `all` group, a capped query
+     * per condition unioned for an `any` group.
+     *
+     * @param string[] $warnings
+     * @return array{0: int[], 1: bool} The IDs, and whether any query hit the ceiling.
+     */
+    private function groupIds(FilterSet $filter, BaseType $type, Criterion $group, array &$warnings): array
+    {
+        $conditions = $group->completeCriteria();
+
+        if ($group->matchMode !== FilterSet::MATCH_ANY) {
+            return $this->probeIds($filter, $type, $conditions, $warnings);
+        }
+
+        $ids = [];
+        $truncated = false;
+
+        foreach ($conditions as $condition) {
+            [$found, $conditionTruncated] = $this->probeIds($filter, $type, [$condition], $warnings);
+            $truncated = $truncated || $conditionTruncated;
+
+            foreach ($found as $id) {
+                $ids[$id] = true;
+            }
+        }
+
+        return [array_keys($ids), $truncated];
+    }
+
+    /**
+     * Runs conditions together on a fresh base query and returns the IDs, capped at
+     * `anyMatchIdLimit`.
+     *
+     * @param Criterion[] $conditions
+     * @param string[] $warnings
+     * @return array{0: int[], 1: bool}
+     */
+    private function probeIds(FilterSet $filter, BaseType $type, array $conditions, array &$warnings): array
+    {
+        $limit = Plugin::getInstance()->getSettings()->anyMatchIdLimit;
+        $probe = $this->baseQuery($filter, $type);
+
+        foreach ($conditions as $condition) {
+            $this->apply($probe, $type, $filter->source, $condition, $warnings);
+        }
+
+        if ($limit > 0) {
+            $probe->limit($limit + 1);
+        }
+
+        $found = array_map('intval', $probe->ids());
+
+        if ($limit > 0 && count($found) > $limit) {
+            return [array_slice($found, 0, $limit), true];
+        }
+
+        return [$found, false];
+    }
+
+    private function groupTruncatedWarning(int $groupNumber, int $limit): string
+    {
+        return Craft::t('cleanair', 'Group {number} matched more than {limit} elements for a single condition, so the results are incomplete. Narrow the source, or tighten that group.', [
+            'number' => $groupNumber,
+            'limit' => $limit,
+        ]);
     }
 
     /**

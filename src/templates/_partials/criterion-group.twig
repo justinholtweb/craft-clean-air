@@ -1,0 +1,40 @@
+{# A condition group (Pro): its own all/any over the rows inside it, one level deep. #}
+
+<div class="cleanair-group" data-cleanair-group data-name="{{ name }}">
+    {{ hiddenInput(name ~ '[type]', 'group') }}
+
+    <div class="cleanair-group__head">
+        <label class="cleanair-group__label" for="{{ ('cleanair-group-' ~ index)|id }}">{{ 'Group — match'|t('cleanair') }}</label>
+        <div class="select">
+            <select id="{{ ('cleanair-group-' ~ index)|id }}" name="{{ name }}[matchMode]">
+                <option value="all"{% if (matchMode ?? 'all') == 'all' %} selected{% endif %}>{{ 'all of these'|t('cleanair') }}</option>
+                <option value="any"{% if (matchMode ?? 'all') == 'any' %} selected{% endif %}>{{ 'any of these'|t('cleanair') }}</option>
+            </select>
+        </div>
+        <div class="flex-grow"></div>
+        <button type="button" class="delete icon" data-cleanair-remove-group title="{{ 'Remove group'|t('cleanair') }}" aria-label="{{ 'Remove group'|t('cleanair') }}"></button>
+    </div>
+
+    <div class="cleanair-criteria" data-cleanair-group-criteria>
+        {% for row in children ?? [] %}
+            {% include 'cleanair/_partials/criterion-row' with {
+                index: row.index,
+                name: row.name,
+                criterion: row.criterion,
+                definition: row.definition,
+                operators: row.operators,
+                operator: row.operator,
+                value: row.value,
+                value2: row.value2,
+                dateValue: row.dateValue,
+                dateValue2: row.dateValue2,
+                valueElements: row.valueElements,
+                grouped: grouped
+            } only %}
+        {% endfor %}
+    </div>
+
+    <div class="cleanair-group__actions">
+        <button type="button" class="btn add icon small" data-cleanair-add-to-group>{{ 'Add a condition to this group'|t('cleanair') }}</button>
+    </div>
+</div>

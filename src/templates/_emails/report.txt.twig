@@ -1,0 +1,37 @@
+{%- autoescape false -%}
+{% if isTest %}{{ "This is a test, run with your own permissions. The scheduled report still goes out on time, and this doesn’t change what it counts as new."|t('cleanair') }}
+
+{% endif %}
+{{ filterName }}
+{{ typeLabel }} · {{ schedule }}
+
+{{ "{count, plural, =0{No results} =1{One result} other{# results}}"|t('cleanair', { count: count }) }}
+{% if firstReport %}{{ "The first report, so everything counts as new."|t('cleanair') }}{% elseif tooManyToCompare %}{{ "Too many results to compare with the last report, so nothing is marked new."|t('cleanair') }}{% else %}{{ "{count, plural, =0{Nothing new} =1{One new} other{# new}} since the last report, sent {date}."|t('cleanair', { count: newCount, date: since ? since|datetime('short') : '—' }) }}{% endif %}
+
+
+{% if items|length -%}
+{{ previewIsNew ? "New since last time"|t('cleanair') : "The first few"|t('cleanair') }}
+
+{% for item in items -%}
+- {{ item.label }}{% if item.url %}  {{ item.url }}{% endif %}
+
+{% endfor -%}
+{% if more %}{{ "… and {count} more in the file."|t('cleanair', { count: more|number }) }}
+
+{% endif -%}
+{%- elseif personal and count -%}
+{{ "{type} are personal data, so they aren’t listed in email."|t('cleanair', { type: typeLabel }) }}
+
+{% endif -%}
+{% if attached is defined and attached -%}
+{{ "The full result set is attached: {file}."|t('cleanair', { file: fileName }) }}
+{%- elseif count -%}
+{% if tooLargeToAttach ?? false %}{{ "The file was too big to attach, so it’s waiting on your Exports screen."|t('cleanair') }}{% else %}{{ "The full result set is waiting on your Exports screen. Sign in to download it."|t('cleanair') }}{% endif %}
+{{ downloadUrl }}
+{%- endif %}
+
+
+{{ "Run the filter in Clean Air"|t('cleanair') }}: {{ filterUrl }}
+
+{{ "Change the schedule or who gets it:"|t('cleanair') }} {{ scheduleUrl }}
+{% endautoescape -%}

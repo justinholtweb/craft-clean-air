@@ -35,6 +35,16 @@ abstract class BaseType extends BaseObject
         return $class::pluralDisplayName();
     }
 
+    /**
+     * Whether a result set of this type is personal data by nature — people, addresses, orders.
+     * Scheduled reports never attach these to an email; the recipient gets a copy on the
+     * authenticated Exports screen instead.
+     */
+    public function containsPersonalData(): bool
+    {
+        return false;
+    }
+
     /** Whether the element type exists on this install at all. */
     public function isAvailable(): bool
     {

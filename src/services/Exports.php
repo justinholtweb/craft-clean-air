@@ -254,6 +254,44 @@ class Exports extends Component
         return "$base-$date.$record->format";
     }
 
+    /**
+     * A copy of a finished export that belongs to someone else — how a scheduled report lands on
+     * each recipient's Exports screen. A file is downloadable only by the person it belongs to,
+     * so sharing one means each of them gets their own, pruned on the same schedule.
+     */
+    public function copyFor(ExportRecord $source, int $userId): ExportRecord
+    {
+        $record = new ExportRecord();
+        $record->filterId = $source->filterId;
+        $record->userId = $userId;
+        $record->elementType = $source->elementType;
+        $record->format = $source->format;
+        $record->status = ExportRecord::STATUS_PENDING;
+        $record->label = $source->label;
+        $record->save(false);
+
+        $path = $this->pathFor($record);
+        FileHelper::createDirectory(dirname($path));
+
+        if (!$source->path || !@copy($source->path, $path)) {
+            $record->status = ExportRecord::STATUS_FAILED;
+            $record->error = 'Couldn’t copy the report file.';
+            $record->save(false);
+
+            return $record;
+        }
+
+        $record->status = ExportRecord::STATUS_DONE;
+        $record->rowCount = $source->rowCount;
+        $record->path = $path;
+        $record->filename = $source->filename;
+        $record->filesize = $source->filesize;
+        $record->dateFinished = Db::prepareDateForDb(new DateTime());
+        $record->save(false);
+
+        return $record;
+    }
+
     public function getById(int $id): ?ExportRecord
     {
         return ExportRecord::findOne($id);

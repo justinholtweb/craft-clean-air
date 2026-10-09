@@ -1,0 +1,81 @@
+{#
+    A scheduled report, HTML half. Rendered by helpers/Mailer in control-panel template mode.
+    Inline styles on purpose: this is an email, and mail clients drop <style> blocks and every
+    stylesheet the control panel has.
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>{{ filterName }}</title>
+</head>
+<body style="margin:0;padding:24px;background:#f3f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2933;font-size:15px;line-height:1.5;">
+<div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:6px;padding:24px;">
+    {% if isTest %}
+        <p style="margin:0 0 16px;padding:8px 12px;background:#fff8e1;border-radius:4px;font-size:13px;">
+            {{ "This is a test, run with your own permissions. The scheduled report still goes out on time, and this doesn’t change what it counts as new."|t('cleanair') }}
+        </p>
+    {% endif %}
+
+    <h1 style="margin:0 0 4px;font-size:20px;">{{ filterName }}</h1>
+    <p style="margin:0 0 20px;color:#606d7b;font-size:13px;">
+        {{ typeLabel }} · {{ schedule }}
+    </p>
+
+    <p style="margin:0 0 8px;font-size:17px;">
+        {{ "{count, plural, =0{No results} =1{One result} other{# results}}"|t('cleanair', { count: count }) }}
+    </p>
+    <p style="margin:0 0 20px;color:#3e4c59;font-size:14px;">
+        {% if firstReport %}
+            {{ "The first report, so everything counts as new."|t('cleanair') }}
+        {% elseif tooManyToCompare %}
+            {{ "Too many results to compare with the last report, so nothing is marked new."|t('cleanair') }}
+        {% else %}
+            {{ "{count, plural, =0{Nothing new} =1{One new} other{# new}} since the last report, sent {date}."|t('cleanair', { count: newCount, date: since ? since|datetime('short') : '—' }) }}
+        {% endif %}
+    </p>
+
+    {% if items|length %}
+        <h2 style="margin:0 0 8px;font-size:15px;">{{ previewIsNew ? "New since last time"|t('cleanair') : "The first few"|t('cleanair') }}</h2>
+        <ul style="margin:0 0 12px;padding:0 0 0 18px;">
+            {% for item in items %}
+                <li style="margin:0 0 4px;">
+                    {% if item.url %}<a href="{{ item.url }}" style="color:#1f2933;">{{ item.label }}</a>{% else %}{{ item.label }}{% endif %}
+                    {% if item.isNew and not previewIsNew %}<span style="color:#1f7a3f;font-size:12px;"> {{ "new"|t('cleanair') }}</span>{% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+        {% if more %}
+            <p style="margin:0 0 16px;color:#606d7b;">{{ "… and {count} more in the file."|t('cleanair', { count: more|number }) }}</p>
+        {% endif %}
+    {% elseif personal and count %}
+        <p style="margin:0 0 16px;color:#606d7b;font-size:14px;">{{ "{type} are personal data, so they aren’t listed in email."|t('cleanair', { type: typeLabel }) }}</p>
+    {% endif %}
+
+    {% if attached is defined and attached %}
+        <p style="margin:0 0 16px;font-size:14px;">{{ "The full result set is attached: {file}."|t('cleanair', { file: fileName }) }}</p>
+    {% elseif count %}
+        <p style="margin:0 0 8px;font-size:14px;">
+            {% if tooLargeToAttach ?? false %}
+                {{ "The file was too big to attach, so it’s waiting on your Exports screen."|t('cleanair') }}
+            {% else %}
+                {{ "The full result set is waiting on your Exports screen. Sign in to download it."|t('cleanair') }}
+            {% endif %}
+        </p>
+        <p style="margin:0 0 16px;">
+            <a href="{{ downloadUrl }}" style="display:inline-block;padding:8px 14px;background:#2563eb;color:#ffffff;border-radius:4px;text-decoration:none;">{{ "Open Exports"|t('cleanair') }}</a>
+        </p>
+    {% endif %}
+
+    <p style="margin:0 0 20px;">
+        <a href="{{ filterUrl }}" style="color:#2563eb;">{{ "Run the filter in Clean Air"|t('cleanair') }}</a>
+    </p>
+
+    <p style="margin:0;color:#7b8794;font-size:12px;">
+        {{ "Change the schedule or who gets it:"|t('cleanair') }}
+        <a href="{{ scheduleUrl }}" style="color:#7b8794;">{{ scheduleUrl }}</a>
+    </p>
+</div>
+</body>
+</html>

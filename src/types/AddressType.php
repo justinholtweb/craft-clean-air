@@ -95,4 +95,10 @@ class AddressType extends BaseType
     {
         return $user !== null && ($user->admin || $user->can('viewUsers'));
     }
+
+    /** Addresses are where people live. */
+    public function containsPersonalData(): bool
+    {
+        return true;
+    }
 }

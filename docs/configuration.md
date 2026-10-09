@@ -113,6 +113,25 @@ Pruning runs from `craft cleanair/exports/prune`.
 `csvBom` writes a UTF-8 byte order mark, which is what makes Excel open accented characters
 correctly.
 
+## Scheduled reports
+
+```php
+'reportWebTrigger' => true,
+'reportAttachmentLimit' => 5,
+```
+
+Pro only. The schedules themselves — how often, who to, which format — are set per saved filter on
+the **Saved filters** screen and stored in the database, not here.
+
+`reportWebTrigger` lets the end of a web request queue any report that is due, checking at most every
+five minutes. It is the fallback for sites without a cron job running `craft cleanair/reports/send`;
+with cron, it can be turned off.
+
+`reportAttachmentLimit` is the largest file, in MB, attached to a report email. Bigger files are put
+on each recipient's Exports screen and linked instead. `0` never attaches. Reports of users,
+addresses and orders — and of element types Clean Air doesn't know — are never attached, whatever
+their size.
+
 ## Logging
 
 ```php

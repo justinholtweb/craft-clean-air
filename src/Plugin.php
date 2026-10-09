@@ -10,6 +10,7 @@ use craft\events\RegisterUserPermissionsEvent;
 use craft\log\MonologTarget;
 use craft\services\Fields as CraftFields;
 use craft\services\UserPermissions;
+use craft\web\Application as WebApplication;
 use craft\web\twig\variables\CraftVariable;
 use craft\web\UrlManager;
 use justinholtweb\cleanair\fields\FilterField;
@@ -23,9 +24,11 @@ use justinholtweb\cleanair\services\Importer;
 use justinholtweb\cleanair\services\Operators;
 use justinholtweb\cleanair\services\Permissions;
 use justinholtweb\cleanair\services\Query;
+use justinholtweb\cleanair\services\Reports;
 use justinholtweb\cleanair\services\SavedFilters;
 use justinholtweb\cleanair\services\Types;
 use justinholtweb\cleanair\variables\CleanAirVariable;
+use Throwable;
 use yii\base\Event;
 
 /**
@@ -48,6 +51,7 @@ use yii\base\Event;
  * @property-read Exports $exports
  * @property-read Importer $importer
  * @property-read Permissions $permissions
+ * @property-read Reports $reports
  * @property-read Settings $settings
  *
  * @method Settings getSettings()
@@ -60,7 +64,7 @@ class Plugin extends BasePlugin
     /** Log category used by everything in the plugin. */
     public const LOG_CATEGORY = 'cleanair';
 
-    public string $schemaVersion = '1.0.0';
+    public string $schemaVersion = '1.1.0';
     public bool $hasCpSection = true;
     public bool $hasCpSettings = true;
 
@@ -86,6 +90,7 @@ class Plugin extends BasePlugin
                 'exports' => Exports::class,
                 'importer' => Importer::class,
                 'permissions' => Permissions::class,
+                'reports' => Reports::class,
             ],
         ];
     }
@@ -105,6 +110,10 @@ class Plugin extends BasePlugin
         $this->registerPermissions();
         $this->registerTwigVariable();
         $this->registerFieldType();
+
+        if (!Craft::$app->getRequest()->getIsConsoleRequest()) {
+            $this->registerReportFallback();
+        }
     }
 
     protected function createSettingsModel(): ?\craft\base\Model
@@ -201,6 +210,7 @@ class Plugin extends BasePlugin
                 $event->rules['cleanair'] = 'cleanair/filters/index';
                 $event->rules['cleanair/saved'] = 'cleanair/saved-filters/index';
                 $event->rules['cleanair/saved/<filterId:\d+>'] = 'cleanair/saved-filters/run';
+                $event->rules['cleanair/saved/<filterId:\d+>/report'] = 'cleanair/reports/edit';
                 $event->rules['cleanair/exports'] = 'cleanair/exports/index';
                 $event->rules['cleanair/import'] = 'cleanair/import/index';
                 // Listed last so the named screens above win — an element type key can be
@@ -246,6 +256,10 @@ class Plugin extends BasePlugin
                                         Permissions::MANAGE_SHARED => [
                                             'label' => Craft::t('cleanair', 'Edit and delete other people’s shared filters'),
                                         ],
+                                        Permissions::SCHEDULE => [
+                                            'label' => Craft::t('cleanair', 'Email saved filters on a schedule'),
+                                            'info' => Craft::t('cleanair', 'Pro. Needs “Export results” too. Reports only ever go to people who could run the filter and export it themselves.'),
+                                        ],
                                     ],
                                 ],
                                 Permissions::IMPORT => [
@@ -257,6 +271,39 @@ class Plugin extends BasePlugin
                 ];
             },
         );
+    }
+
+    /**
+     * The scheduled reports' fallback trigger, for sites with no cron job running
+     * `cleanair/reports/send`.
+     *
+     * At the end of a web request rather than on `Gc::EVENT_RUN`: garbage collection runs on a
+     * dice roll by default, which makes for a schedule nobody can predict. What runs here is a
+     * cache read; the schedules are consulted at most every five minutes and the work happens in
+     * a queue job.
+     */
+    private function registerReportFallback(): void
+    {
+        /** @var Settings $settings */
+        $settings = $this->getSettings();
+
+        if (!$settings->reportWebTrigger || !Edition::allowsScheduledReports($this->isPro())) {
+            return;
+        }
+
+        Event::on(WebApplication::class, WebApplication::EVENT_AFTER_REQUEST, function() {
+            try {
+                // Before the migration that adds the reports table has run, there is nowhere to
+                // read the schedules from.
+                if (!Craft::$app->getIsInstalled() || Craft::$app->getPlugins()->isPluginUpdatePending($this)) {
+                    return;
+                }
+
+                $this->reports->queueIfDue();
+            } catch (Throwable $e) {
+                Craft::warning('Could not check the report schedules: ' . $e->getMessage(), self::LOG_CATEGORY);
+            }
+        });
     }
 
     private function registerTwigVariable(): void

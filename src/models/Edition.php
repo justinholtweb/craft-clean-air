@@ -53,6 +53,18 @@ abstract class Edition
         return $isPro;
     }
 
+    /** Condition groups — "in Products AND (no image OR no price)" as one filter. */
+    public static function allowsConditionGroups(bool $isPro): bool
+    {
+        return $isPro;
+    }
+
+    /** Emailing a saved filter's results on a schedule. */
+    public static function allowsScheduledReports(bool $isPro): bool
+    {
+        return $isPro;
+    }
+
     /** Handing a big export to the queue instead of the request. */
     public static function allowsQueuedExports(bool $isPro): bool
     {

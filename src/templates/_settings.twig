@@ -132,6 +132,35 @@
 
 <hr>
 
+<h2>{{ "Scheduled reports"|t('cleanair') }}</h2>
+
+<p class="light">
+    {{ "Saved filters can be emailed daily, weekly or monthly from the Saved filters screen. Run `php craft cleanair/reports/send` from cron every 15–60 minutes; each report goes once per period, whatever the interval."|t('cleanair') }}
+</p>
+
+{{ forms.lightswitchField({
+    label: "Check schedules at the end of web requests"|t('cleanair'),
+    instructions: "For sites with no cron job. At most every five minutes, a request queues any report that’s due. Cron is more punctual."|t('cleanair'),
+    id: 'reportWebTrigger',
+    name: 'settings[reportWebTrigger]',
+    on: settings.reportWebTrigger,
+    disabled: not isPro,
+    warning: not isPro ? "Pro only."|t('cleanair'),
+}) }}
+
+{{ forms.textField({
+    label: "Largest attachment"|t('cleanair'),
+    instructions: "MB. Bigger files are put on each recipient’s Exports screen and linked instead. Reports of users, addresses and orders are never attached, whatever their size. 0 never attaches."|t('cleanair'),
+    id: 'reportAttachmentLimit',
+    name: 'settings[reportAttachmentLimit]',
+    value: settings.reportAttachmentLimit,
+    size: 6,
+    type: 'number',
+    disabled: not isPro,
+}) }}
+
+<hr>
+
 <h2>{{ "Logging"|t('cleanair') }}</h2>
 
 {{ forms.selectField({

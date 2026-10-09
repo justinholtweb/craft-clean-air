@@ -23,6 +23,9 @@ permission to see. Addresses have no source, because Craft has no address index 
 **Match** is `all conditions` or `any condition`. CP Filters could only ever AND. See
 [Match any](#match-any) below for what OR costs.
 
+**Groups** (Pro) put conditions together under their own `all`/`any`. See
+[Condition groups](#condition-groups).
+
 ## Operators that fit the value
 
 Clean Air does not ask what class a field is. It asks what shape its value is, and the operators
@@ -114,7 +117,80 @@ craft cleanair/filters/export stale-drafts --format=csv --path=/tmp/report.csv
 craft cleanair/exports/prune                  # housekeeping
 ```
 
-Which is how a saved filter becomes a scheduled report.
+To have Clean Air email a saved filter on a schedule rather than writing cron and mail plumbing
+yourself, see [Scheduled reports](#scheduled-reports).
+
+```sh
+craft cleanair/reports/send                               # send every report that's due (cron)
+craft cleanair/reports/send --report=stale-drafts --force # send one now, whatever the schedule
+craft cleanair/reports/status                             # last run, last sent, next due
+```
+
+`cleanair/reports/send` exits 0 for every outcome that isn't a fault — not due, already sent,
+nothing to send — so cron stays quiet. It exits 78 when a report has nobody it may go to, or its
+owner can no longer run it, and 1 when a send failed (the next run tries again).
+
+## Scheduled reports
+
+*Pro only.*
+
+On **Saved filters**, press **Email…** beside a filter you can edit. You need the *Email saved
+filters on a schedule* permission as well as *Save filters* and *Export results*.
+
+| Setting | |
+| --- | --- |
+| How often | Daily, weekly (on a weekday) or monthly (on a day, 1–28) |
+| At | An hour, in the system time zone |
+| Send to | Control panel users |
+| Format | Any export format your edition has |
+| Send it | Only when the filter matches something; only when it matches something the last report didn't; or every time |
+| Delivery | Attach the file, or put a copy on each person's Exports screen and link to it |
+
+**Who it runs as.** A report runs with the permissions of whoever last saved its schedule. Saving
+it is saying "run this as me". If that person loses access to the filter's element type or source,
+or to Clean Air, the report stops and its status says why; someone with access has to save it again.
+
+**Who it goes to.** Control panel users who could run the filter and export it themselves — the
+schedule screen refuses anyone else, with the reason, and each recipient is checked again every
+time it runs. A report never tells anyone something they couldn't find out in Clean Air.
+
+**Personal data.** Users, addresses and orders — and element types Clean Air knows nothing about —
+are never attached to an email and never listed in one. Each recipient gets their own copy on their
+**Exports** screen, behind a login. Other types are attached up to `reportAttachmentLimit`
+([Configuration](configuration#scheduled-reports)) and linked above it. Copies are pruned with every
+other export.
+
+**What's new.** Each report remembers which elements it sent last time, so the email can say how
+many are new and list the new ones first, and "only when it matches something the last report
+didn't" means exactly that. Past 50,000 results it stops comparing, and says so.
+
+**When it goes.** Once per period — a day, an ISO week or a month — at the first run of
+`cleanair/reports/send` on or after the hour. A run that is missed still sends later in the same
+period. A schedule saved after this period's hour waits for the next period, so saving "weekly on
+Monday" on a Wednesday doesn't send straight away. If a send fails, the period is handed back and
+the next run tries again.
+
+**Without cron**, the end of a web request queues any report that's due, at most every five minutes
+(`reportWebTrigger`). Cron is more punctual on a quiet site.
+
+**Send me a test now** sends what the report would say to you alone, run with your permissions and
+marked as a test. It doesn't count as this period's report and doesn't change what the next one
+calls new. One test every 30 seconds.
+
+**Changing it in code.** `Reports::EVENT_BEFORE_SEND` fires before every report, scheduled or test,
+with the report, the saved filter, the recipients, the subject and the template variables. Change
+any of them — anyone added is still checked — or set `$event->isValid = false` to stop it. A
+cancelled scheduled report keeps its marker, so the next run asks again, and nothing has been
+exported yet when the event fires.
+
+```php
+use justinholtweb\cleanair\events\ReportEvent;
+use justinholtweb\cleanair\services\Reports;
+
+Event::on(Reports::class, Reports::EVENT_BEFORE_SEND, function(ReportEvent $event) {
+    $event->subject = '[Weekly] ' . $event->subject;
+});
+```
 
 ## Importing from CP Filters
 
@@ -163,6 +239,29 @@ one query per condition.
 There is a configurable ceiling (`anyMatchIdLimit`, 50,000 by default); results past it are
 truncated and the filter says so rather than pretending. That is why OR is a deliberate mode rather
 than the default.
+
+## Condition groups
+
+*Pro only.*
+
+**Add a group** puts a box in the filter with its own `all of these` / `any of these`. Groups go one
+level deep: a group holds conditions, not other groups. *Section is Products* AND (*Image is empty*
+OR *Price is empty*) is one filter:
+
+- match **all conditions**
+  - Section is Products
+  - group, **any of these**: Image is empty · Price is empty
+
+It works the other way round too — `match any` at the top, with an `all` group as one of the
+alternatives.
+
+An `all` group inside an `all` filter is the same as writing its conditions at the top. An `any`
+group is evaluated like `match any` — one query per condition, IDs unioned — and intersected with
+everything else, so `anyMatchIdLimit` applies per group. When a group hits it, the warning names the
+group.
+
+A filter with groups that is opened on Lite (after a downgrade, say) matches nothing and says why,
+rather than quietly ignoring the groups and returning more than it should.
 
 ## Extending it
 
