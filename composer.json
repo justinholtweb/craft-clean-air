@@ -2,7 +2,7 @@
     "name": "justinholtweb/craft-cleanair",
     "description": "Advanced control panel filtering for every element type — build multi-criteria filters, save and share them, and export the results.",
     "type": "craft-plugin",
-    "version": "5.0.1",
+    "version": "5.1.0",
     "keywords": [
         "craft",
         "cms",

@@ -1,7 +1,6 @@
 # Release Notes for Clean Air
 
-## Unreleased
-
+## 5.1.0 — 2026-10-09
 ### Added
 
 - Scheduled email reports (Pro). Any saved filter can be emailed daily, weekly or monthly — press
