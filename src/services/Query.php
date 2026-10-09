@@ -4,11 +4,17 @@ namespace justinholtweb\cleanair\services;
 
 use Craft;
 use craft\base\ElementInterface;
+use craft\base\Field;
 use craft\db\Query as DbQuery;
+use craft\db\QueryAbortedException;
 use craft\db\Table;
 use craft\elements\db\ElementQuery;
 use craft\elements\db\ElementQueryInterface;
 use craft\elements\Entry;
+use craft\fields\BaseOptionsField;
+use craft\fields\Date;
+use craft\fields\Money;
+use craft\fields\Number;
 use craft\helpers\Db;
 use justinholtweb\cleanair\models\Criterion;
 use justinholtweb\cleanair\models\Edition;
@@ -16,6 +22,7 @@ use justinholtweb\cleanair\models\FieldDefinition;
 use justinholtweb\cleanair\models\FilterSet;
 use justinholtweb\cleanair\Plugin;
 use justinholtweb\cleanair\types\BaseType;
+use ReflectionMethod;
 use yii\base\Component;
 use yii\db\Expression;
 
@@ -284,7 +291,7 @@ class Query extends Component
         // Statuses aren't a value comparison in Craft; they're a named set of conditions, so
         // they get their own path rather than being forced through the parameter syntax.
         if ($definition->kind === FieldDefinition::KIND_STATUS) {
-            $this->applyStatus($query, $type, $criterion);
+            $this->applyStatus($query, $type, $source, $criterion);
             return;
         }
 
@@ -300,14 +307,25 @@ class Query extends Component
 
         match ($instruction['strategy']) {
             Operators::STRATEGY_ABORT => $this->matchNothing($query),
-            Operators::STRATEGY_PARAM => $this->applyParam($query, $definition, $instruction),
+            Operators::STRATEGY_PARAM => $this->applyParam($query, $definition, $instruction, $type, $source),
             Operators::STRATEGY_EXCLUDE => $this->applyExclude($query, $type, $source, $definition, $instruction),
             Operators::STRATEGY_RELATION_COUNT => $this->applyRelationCount($query, $definition, $instruction, $warnings),
             default => null,
         };
     }
 
-    private function applyParam(ElementQuery $query, FieldDefinition $definition, array $instruction): void
+    /**
+     * Sets a query parameter — or, when an earlier condition (or the source) already set the
+     * same one, ANDs the two together.
+     *
+     * A parameter holds one value, so assigning it a second time replaces the first: "Price > 10
+     * AND Price < 50" used to run as "Price < 50", and a Section condition on a section source
+     * replaced the source. Values Craft's parameter syntax can join are written as one
+     * `['and', …]` list; everything else — relations, "is one of" lists, booleans, the option
+     * IDs Craft resolves itself — is applied as a subquery of its own, so no condition is ever
+     * dropped.
+     */
+    private function applyParam(ElementQuery $query, FieldDefinition $definition, array $instruction, ?BaseType $type = null, ?string $source = null): void
     {
         $value = $instruction['value'];
 
@@ -317,18 +335,217 @@ class Query extends Component
 
         $caseInsensitive = (bool)($instruction['caseInsensitive'] ?? false);
 
-        if ($definition->isCustomField()) {
-            $query->{$definition->handle} = $this->wrapForField($definition, $value, $caseInsensitive);
-            return;
-        }
-
-        if ($definition->column !== null) {
+        if (!$definition->isCustomField() && $definition->column !== null) {
+            // A column condition is its own `andWhere`, so it already adds up.
             $query->andWhere($this->columnCondition($definition, $value, $caseInsensitive));
             return;
         }
 
-        $param = $definition->param ?? $definition->handle;
-        $query->$param = $value;
+        $property = $definition->isCustomField() ? $definition->handle : ($definition->param ?? $definition->handle);
+        $current = $query->canGetProperty($property) ? $query->$property : null;
+
+        if ($current === null) {
+            $query->$property = $definition->isCustomField()
+                ? $this->wrapForField($definition, $value, $caseInsensitive)
+                : $value;
+            return;
+        }
+
+        $merged = $this->mergeParam($definition, $current, $value, $caseInsensitive);
+
+        if ($merged !== null) {
+            $query->$property = $merged;
+            return;
+        }
+
+        if ($current === ($definition->isCustomField() ? $this->wrapForField($definition, $value, $caseInsensitive) : $value)) {
+            // The same condition twice.
+            return;
+        }
+
+        if ($type === null) {
+            // Nothing to build the subquery from. Only `applyExclude()`'s fresh probe calls
+            // without a type, and it never sets a parameter twice — but if it ever did, "nothing
+            // matches" is wrong in a way somebody notices; replacing the first condition isn't.
+            $this->matchNothing($query);
+            return;
+        }
+
+        // Assigned outright on the subquery: if the source set this parameter (a Section
+        // condition on a section source), the outer query still holds the source.
+        $this->andAlsoMatching($query, $type, $source, function(ElementQuery $probe) use ($definition, $property, $value, $caseInsensitive) {
+            $probe->$property = $definition->isCustomField()
+                ? $this->wrapForField($definition, $value, $caseInsensitive)
+                : $value;
+        });
+    }
+
+    /**
+     * Joins a parameter value already on the query with a new one as a single `['and', …]`
+     * list, or returns null when the two can't be joined that way.
+     *
+     * Only for parameters that hand their whole value to Craft's own parsers — `parseParam`,
+     * `parseNumericParam`, `parseDateParam`, `parseMoneyParam` — which take a flat list of
+     * operator-prefixed values. Those parsers don't recurse, so an "is one of" list (an `or`)
+     * can't go inside an `and`; that, and anything with its own syntax, returns null.
+     */
+    private function mergeParam(FieldDefinition $definition, mixed $current, mixed $value, bool $caseInsensitive): mixed
+    {
+        if (!$this->joinable($definition)) {
+            return null;
+        }
+
+        $currentCaseInsensitive = false;
+        if ($definition->isCustomField() && is_array($current) && array_key_exists('value', $current)) {
+            $currentCaseInsensitive = (bool)($current['caseInsensitive'] ?? false);
+            $current = $current['value'];
+        }
+
+        $before = $this->andTerms($current);
+        $after = $this->andTerms($value);
+
+        if ($before === null || $after === null) {
+            return null;
+        }
+
+        $merged = array_merge(['and'], $before, $after);
+
+        if (!$definition->isCustomField() || !$this->isTextual($definition)) {
+            return $merged;
+        }
+
+        // The case flag belongs to the whole parameter, so two text conditions that disagree
+        // about it can't share one. `:empty:` and `:notempty:` have no case and go with either.
+        $wrappedAfter = $this->wrapForField($definition, $value, $caseInsensitive) !== $value;
+        $neutralBefore = count($before) === 1 && is_string($before[0]) && str_starts_with($before[0], ':');
+        $neutralAfter = is_string($value) && str_starts_with($value, ':');
+
+        if (!$neutralBefore && !$neutralAfter && $currentCaseInsensitive !== $wrappedAfter) {
+            return null;
+        }
+
+        return ($currentCaseInsensitive || $wrappedAfter)
+            ? ['value' => $merged, 'caseInsensitive' => true]
+            : $merged;
+    }
+
+    /**
+     * Whether this parameter's value is parsed as a flat `and`/`or` list of comparisons.
+     * Native text, number, money and date parameters are; custom fields are when their query
+     * condition is Craft's base one or the number, money, date or single-option one.
+     */
+    private function joinable(FieldDefinition $definition): bool
+    {
+        $kinds = [
+            FieldDefinition::KIND_TEXT,
+            FieldDefinition::KIND_NUMBER,
+            FieldDefinition::KIND_MONEY,
+            FieldDefinition::KIND_DATE,
+        ];
+
+        if (!$definition->isCustomField()) {
+            return in_array($definition->kind, $kinds, true);
+        }
+
+        $kinds[] = FieldDefinition::KIND_OPTIONS;
+
+        if (!in_array($definition->kind, $kinds, true) || !$definition->field) {
+            return false;
+        }
+
+        $declaring = (new ReflectionMethod($definition->field, 'queryCondition'))->getDeclaringClass()->getName();
+
+        if ($declaring === BaseOptionsField::class) {
+            return $definition->kind === FieldDefinition::KIND_OPTIONS;
+        }
+
+        return in_array($declaring, [Field::class, Number::class, Money::class, Date::class], true);
+    }
+
+    /**
+     * A value as the terms of an `and` list, or null if it isn't one.
+     *
+     * @return array<int,string|int|float>|null
+     */
+    private function andTerms(mixed $value): ?array
+    {
+        if (is_int($value) || is_float($value)) {
+            return [$value];
+        }
+
+        if (is_string($value)) {
+            // An unescaped comma makes a string a list of alternatives, which is an `or`.
+            return preg_match('/(?<!\\\\),/', $value) ? null : [$value];
+        }
+
+        if (!is_array($value) || !array_is_list($value) || count($value) < 2) {
+            return null;
+        }
+
+        $glue = is_string($value[0]) ? strtolower($value[0]) : null;
+        $terms = array_slice($value, 1);
+
+        if ($glue !== 'and' && !($glue === 'or' && count($terms) === 1)) {
+            return null;
+        }
+
+        foreach ($terms as $term) {
+            if (!is_string($term) && !is_int($term) && !is_float($term)) {
+                return null;
+            }
+            if (is_string($term) && preg_match('/(?<!\\\\),/', $term)) {
+                return null;
+            }
+        }
+
+        return $terms;
+    }
+
+    private function isTextual(FieldDefinition $definition): bool
+    {
+        return in_array($definition->kind, [
+            FieldDefinition::KIND_TEXT,
+            FieldDefinition::KIND_OPTIONS,
+            FieldDefinition::KIND_MULTI_OPTIONS,
+        ], true);
+    }
+
+    /**
+     * ANDs the query with a condition that can't share a parameter with the one already set:
+     * the condition runs on a fresh query of the same type, source and site — every status,
+     * draft and revision, since the outer query decides those — and the outer query keeps only
+     * the rows that query matched. Compared on `elements_sites.id`, so a value that differs
+     * between sites is checked on the site being queried.
+     *
+     * It's a subquery rather than a list of IDs, so it has no ceiling to fall short of.
+     *
+     * @param callable(ElementQuery): void $configure
+     */
+    private function andAlsoMatching(ElementQuery $query, BaseType $type, ?string $source, callable $configure): void
+    {
+        /** @var class-string<ElementInterface> $class */
+        $class = $type->elementType();
+        /** @var ElementQuery $probe */
+        $probe = $class::find();
+        $type->applySource($probe, $source);
+        $probe->status = null;
+        $probe->drafts(null);
+        $probe->revisions(null);
+        $probe->trashed(null);
+        $probe->siteId = $query->siteId;
+
+        $configure($probe);
+
+        try {
+            $subQuery = $probe->prepareSubquery();
+        } catch (QueryAbortedException) {
+            // Craft decided on its own that the condition can never match.
+            $this->matchNothing($query);
+            return;
+        }
+
+        $subQuery->select(['elements_sites.id'])->orderBy(null)->limit(null)->offset(null);
+        $query->andWhere(['elements_sites.id' => $subQuery]);
     }
 
     /**
@@ -348,13 +565,7 @@ class Query extends Component
             return $value;
         }
 
-        $textual = in_array($definition->kind, [
-            FieldDefinition::KIND_TEXT,
-            FieldDefinition::KIND_OPTIONS,
-            FieldDefinition::KIND_MULTI_OPTIONS,
-        ], true);
-
-        return $textual ? ['value' => $value, 'caseInsensitive' => true] : $value;
+        return $this->isTextual($definition) ? ['value' => $value, 'caseInsensitive' => true] : $value;
     }
 
     /**
@@ -482,7 +693,7 @@ class Query extends Component
             ->groupBy(['elements_owners.ownerId']);
     }
 
-    private function applyStatus(ElementQuery $query, BaseType $type, Criterion $criterion): void
+    private function applyStatus(ElementQuery $query, BaseType $type, ?string $source, Criterion $criterion): void
     {
         $statuses = array_keys($type->statusOptions());
         $value = $criterion->value;
@@ -503,7 +714,19 @@ class Query extends Component
             return;
         }
 
-        $query->status = count($selected) === 1 ? reset($selected) : $selected;
+        $status = count($selected) === 1 ? reset($selected) : $selected;
+
+        // The filter's own status, or an earlier status condition, is already on the query.
+        // Statuses overlap ("enabled" covers "live"), so they're not intersected by name: the
+        // new one is matched on its own and both have to hold.
+        if ($query->status !== null) {
+            $this->andAlsoMatching($query, $type, $source, function(ElementQuery $probe) use ($status) {
+                $probe->status = $status;
+            });
+            return;
+        }
+
+        $query->status = $status;
     }
 
     /**

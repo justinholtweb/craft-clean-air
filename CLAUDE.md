@@ -65,6 +65,14 @@ in the two shapes the regex allows.
   `Y-m-d H:i:s` as system time and convert it to UTC themselves, so a pre-converted bound is
   shifted twice. `Operators::dateParam()` formats with `DATE_ATOM`, which carries its own offset.
   The fixture-relative date checks only failed in the hours before the offset (00:00–07:00 in LA).
+- **A query parameter holds one value.** Never assign one blind: `Query::applyParam()` reads what's
+  there first (an earlier condition, or the source — a Section condition on a section source) and
+  either joins the two as one flat `['and', …]` list (Craft's parsers don't recurse, so only
+  operator-prefixed scalars join) or ANDs the new one in as an `elements_sites.id IN (subquery)`
+  built with `prepareSubquery()`. Status conditions do the same against the filter's status.
+- **Craft drops option IDs that don't resolve, then some queries filter on nothing** (`TagQuery`'s
+  `groupId`). `Operators::build()` keeps only the native options that still exist for "is"/"is one
+  of", and aborts when none do.
 - **Element query source params are subclass properties.** Set them with
   `Craft::configure($query, ['sectionId' => $id])`, which PHPStan accepts on a base `ElementQuery`.
 
@@ -75,7 +83,7 @@ at `/var/www/craft-cleanair` (and symlinked into the harness's vendor directory 
 `ls -la ~/Sites/plugin-testing/vendor/justinholtweb | grep cleanair`).
 
 ```sh
-docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/checks.php   # 236 + 3 skipped
+docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/checks.php   # 306 + 3 skipped
 docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/trust.php    # 5, a limited editor over HTTP
 docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/reports.php  # 49, scheduled reports
 docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/reports-http.php # 17, schedule endpoints + group markup

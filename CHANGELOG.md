@@ -27,6 +27,15 @@
   west of UTC, "is on 7 October" ran from 7am on the 7th to 7am on the 8th, missing everything
   earlier in the day and catching the next morning's. They now cover the site's own day and time
   exactly.
+- Two conditions on the same field or attribute no longer replace each other. Each one set the
+  same query parameter, so the last won: "Price is greater than 10" and "Price is less than 50"
+  ran as "Price is less than 50". They now both hold — at the top level, inside a group, and across
+  a group and the top level — whether they're numbers, dates, text, options, lightswitches,
+  relations, statuses or IDs. The same fault let a **Section** or **Entry Type** condition replace
+  the section the filter was built on, and a **Status** condition replace the filter's own status.
+- A condition on a section, entry type, group or volume whose every chosen option has since been
+  deleted matches nothing. Tags' **Group** condition matched every tag instead, because Craft drops
+  IDs that no longer exist and then filters on none.
 
 ## 5.0.1 — 2026-09-28
 

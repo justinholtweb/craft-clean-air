@@ -167,6 +167,22 @@ class Operators extends Component
             return null;
         }
 
+        // A native option is an ID or handle Craft resolves itself — a section, an entry type, a
+        // user group. Craft drops IDs that no longer exist, and some of its queries (tags' group,
+        // for one) then apply no condition at all, so "is one of [a deleted group]" would match
+        // every element. Only the options that still exist are passed on; if none do, the
+        // condition can't match anything.
+        if ($definition->native && $definition->kind === FieldDefinition::KIND_OPTIONS && in_array($operator, ['eq', 'in'], true)) {
+            $known = $this->knownOptions($definition, $this->values($criterion));
+
+            if (!$known) {
+                return ['strategy' => self::STRATEGY_ABORT];
+            }
+
+            $criterion = clone $criterion;
+            $criterion->value = $operator === 'eq' ? $known[0] : $known;
+        }
+
         return match ($operator) {
             'contains' => $this->param('*' . $this->escape($criterion->value) . '*', $criterion),
             'notContains' => $this->param('not *' . $this->escape($criterion->value) . '*', $criterion),
@@ -244,6 +260,19 @@ class Operators extends Component
 
         $values = array_map(fn($v) => trim((string)$v), $values);
         return array_values(array_filter($values, fn($v) => $v !== ''));
+    }
+
+    /**
+     * The chosen values that are still among a native attribute's options.
+     *
+     * @param string[] $values
+     * @return string[]
+     */
+    private function knownOptions(FieldDefinition $definition, array $values): array
+    {
+        $options = array_map('strval', array_keys($definition->options));
+
+        return array_values(array_filter($values, fn(string $value) => in_array($value, $options, true)));
     }
 
     private function listParam(Criterion $criterion, bool $negate): array

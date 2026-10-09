@@ -645,6 +645,228 @@ $bogus = $plugin->query->build(FilterSet::fromArray(['elementType' => 'not\\A\\C
 check('an unknown element type returns nothing rather than everything', $bogus->count() === 0 && count($warnings) === 1);
 
 // ---------------------------------------------------------------------------
+section('Several conditions on one field');
+// ---------------------------------------------------------------------------
+
+// A query parameter holds one value. Each condition used to assign its field's parameter, so the
+// last condition on a field replaced the ones before it: "score > 10 AND score < 100" ran as
+// "score < 100". Every check here is chosen so that either condition alone gives a different
+// answer from the two together, in both orders.
+$bothOrders = function(string $label, array $a, array $b, array $expected, array $overrides = []): void {
+    check("$label", titlesFor(fixtureFilter([$a, $b], $overrides)) === $expected, json_encode(titlesFor(fixtureFilter([$a, $b], $overrides))));
+    check("$label (other order)", titlesFor(fixtureFilter([$b, $a], $overrides)) === $expected, json_encode(titlesFor(fixtureFilter([$b, $a], $overrides))));
+};
+
+$bothOrders('number: more than 10 and less than 100',
+    ['field' => 'caScore', 'operator' => 'gt', 'value' => 10],
+    ['field' => 'caScore', 'operator' => 'lt', 'value' => 100],
+    ['Beta Two']);
+$bothOrders('number: a range and a bound',
+    ['field' => 'caScore', 'operator' => 'between', 'value' => 10, 'value2' => 100],
+    ['field' => 'caScore', 'operator' => 'ne', 'value' => 50],
+    ['Alpha, One', 'Gamma Three']);
+$bothOrders('number: is empty and at most 10',
+    ['field' => 'caScore', 'operator' => 'empty'],
+    ['field' => 'caScore', 'operator' => 'lte', 'value' => 10],
+    []);
+$bothOrders('date field: after 30 days ago and before 5 days ago',
+    ['field' => 'caWhen', 'operator' => 'after', 'value' => (clone $now)->modify('-30 days')->format('Y-m-d H:i:s')],
+    ['field' => 'caWhen', 'operator' => 'before', 'value' => (clone $now)->modify('-5 days')->format('Y-m-d H:i:s')],
+    ['Beta Two']);
+$bothOrders('date field: in the last 30 days and before 3 days ago',
+    ['field' => 'caWhen', 'operator' => 'inLast', 'value' => 30, 'value2' => 'days'],
+    ['field' => 'caWhen', 'operator' => 'before', 'value' => (clone $now)->modify('-3 days')->format('Y-m-d H:i:s')],
+    ['Beta Two']);
+$bothOrders('native date: post date after tomorrow and before the day after',
+    ['field' => 'postDate', 'operator' => 'after', 'value' => (clone $now)->modify('+1 day')->format('Y-m-d H:i:s')],
+    ['field' => 'postDate', 'operator' => 'before', 'value' => (clone $now)->modify('+2 days')->format('Y-m-d H:i:s')],
+    []);
+$bothOrders('native date: date created after an hour ago and before an hour from now',
+    ['field' => 'dateCreated', 'operator' => 'after', 'value' => (clone $now)->modify('-1 hour')->format('Y-m-d H:i:s')],
+    ['field' => 'dateCreated', 'operator' => 'before', 'value' => (clone $now)->modify('-30 minutes')->format('Y-m-d H:i:s')],
+    []);
+$bothOrders('title: contains "ta" and doesn’t contain "Four"',
+    ['field' => 'title', 'operator' => 'contains', 'value' => 'ta'],
+    ['field' => 'title', 'operator' => 'notContains', 'value' => 'Four'],
+    ['Beta Two']);
+$bothOrders('title: is one of two and contains "Three"',
+    ['field' => 'title', 'operator' => 'in', 'value' => "Beta Two\nGamma Three"],
+    ['field' => 'title', 'operator' => 'contains', 'value' => 'Three'],
+    ['Gamma Three']);
+$bothOrders('title: is one of, twice',
+    ['field' => 'title', 'operator' => 'in', 'value' => "Alpha, One\nBeta Two"],
+    ['field' => 'title', 'operator' => 'in', 'value' => "Beta Two\nGamma Three"],
+    ['Beta Two']);
+$bothOrders('text field: contains "hello" and contains "world"',
+    ['field' => 'caSummary', 'operator' => 'contains', 'value' => 'hello'],
+    ['field' => 'caSummary', 'operator' => 'contains', 'value' => 'world'],
+    ['Alpha, One']);
+$bothOrders('text field: case-sensitive and case-insensitive together',
+    ['field' => 'caSummary', 'operator' => 'contains', 'value' => 'hello', 'caseInsensitive' => false],
+    ['field' => 'caSummary', 'operator' => 'contains', 'value' => 'WORLD'],
+    ['Alpha, One']);
+$bothOrders('text field: is not empty and starts with "hello"',
+    ['field' => 'caSummary', 'operator' => 'notEmpty'],
+    ['field' => 'caSummary', 'operator' => 'startsWith', 'value' => 'hello'],
+    ['Alpha, One', 'Delta Four']);
+$bothOrders('dropdown: is one of and is not',
+    ['field' => 'caPick', 'operator' => 'in', 'value' => ['apple', 'banana']],
+    ['field' => 'caPick', 'operator' => 'ne', 'value' => 'apple'],
+    ['Beta Two']);
+$bothOrders('lightswitch: on and off is nothing',
+    ['field' => 'caFlag', 'operator' => 'isTrue'],
+    ['field' => 'caFlag', 'operator' => 'isFalse'],
+    []);
+check('lightswitch: on twice is on', titlesFor(fixtureFilter([
+    ['field' => 'caFlag', 'operator' => 'isTrue'],
+    ['field' => 'caFlag', 'operator' => 'isTrue'],
+])) === ['Alpha, One', 'Gamma Three']);
+$bothOrders('relation: assigned to Alpha and assigned to Beta',
+    ['field' => 'caRelated', 'operator' => 'isAssigned', 'value' => [$entries[0]->id]],
+    ['field' => 'caRelated', 'operator' => 'isAssigned', 'value' => [$entries[1]->id]],
+    ['Gamma Three']);
+$bothOrders('relation: not empty and assigned to Beta',
+    ['field' => 'caRelated', 'operator' => 'notEmpty'],
+    ['field' => 'caRelated', 'operator' => 'isAssigned', 'value' => [$entries[1]->id]],
+    ['Gamma Three']);
+$bothOrders('relation: assigned to Alpha and not assigned to Beta',
+    ['field' => 'caRelated', 'operator' => 'isAssigned', 'value' => [$entries[0]->id]],
+    ['field' => 'caRelated', 'operator' => 'isNotAssigned', 'value' => [$entries[1]->id]],
+    ['Beta Two']);
+
+$fixtureIds = array_map(fn(Entry $e) => (int)$e->id, $entries);
+sort($fixtureIds);
+$bothOrders('ID: more than the lowest and less than the highest',
+    ['field' => 'id', 'operator' => 'gt', 'value' => $fixtureIds[0]],
+    ['field' => 'id', 'operator' => 'lt', 'value' => $fixtureIds[3]],
+    ['Beta Two', 'Gamma Three']);
+
+$bothOrders('status: is disabled and is not disabled',
+    ['field' => 'status', 'operator' => 'eq', 'value' => 'disabled'],
+    ['field' => 'status', 'operator' => 'ne', 'value' => 'disabled'],
+    []);
+check('status: a status condition can’t replace the filter’s own status', titlesFor(fixtureFilter([
+    ['field' => 'status', 'operator' => 'eq', 'value' => 'disabled'],
+], ['status' => 'live'])) === []);
+check('status: a status condition agreeing with the filter’s status still matches', titlesFor(fixtureFilter([
+    ['field' => 'status', 'operator' => 'ne', 'value' => 'disabled'],
+], ['status' => 'live'])) === ['Alpha, One', 'Beta Two', 'Gamma Three']);
+
+// The source is a parameter too. A Section condition used to replace a section source.
+$otherSection = null;
+foreach ($entriesService->getAllSections() as $candidate) {
+    if ($candidate->id !== $section->id && Entry::find()->sectionId($candidate->id)->status(null)->exists()) {
+        $otherSection = $candidate;
+        break;
+    }
+}
+if ($otherSection) {
+    check('a section condition can’t step outside a section source', titlesFor(fixtureFilter([
+        ['field' => 'sectionId', 'operator' => 'in', 'value' => [(string)$otherSection->id]],
+    ], ['source' => 'section:' . $section->id])) === []);
+} else {
+    skip('a section condition can’t step outside a section source', 'no other section with entries in this install');
+}
+check('a section condition naming the source’s own section still matches', count(titlesFor(fixtureFilter([
+    ['field' => 'sectionId', 'operator' => 'eq', 'value' => (string)$section->id],
+], ['source' => 'section:' . $section->id]))) === 4);
+
+check('same field inside an all group', titlesFor(fixtureFilter([
+    group('all', [
+        ['field' => 'caScore', 'operator' => 'gt', 'value' => 10],
+        ['field' => 'caScore', 'operator' => 'lt', 'value' => 100],
+    ]),
+])) === ['Beta Two']);
+check('same field across a group and the top level', titlesFor(fixtureFilter([
+    ['field' => 'caScore', 'operator' => 'gt', 'value' => 10],
+    group('all', [
+        ['field' => 'caScore', 'operator' => 'lt', 'value' => 100],
+        ['field' => 'caSummary', 'operator' => 'notEmpty'],
+    ]),
+])) === ['Beta Two']);
+check('same field in an any group, and at the top level', titlesFor(fixtureFilter([
+    ['field' => 'caScore', 'operator' => 'gt', 'value' => 10],
+    group('any', [
+        ['field' => 'caScore', 'operator' => 'lt', 'value' => 100],
+        ['field' => 'caPick', 'operator' => 'eq', 'value' => 'apple'],
+    ]),
+])) === ['Beta Two']);
+check('match any: an all group with the same field twice', titlesFor(fixtureFilter([
+    ['field' => 'caPick', 'operator' => 'eq', 'value' => 'cherry'],
+    group('all', [
+        ['field' => 'caScore', 'operator' => 'gt', 'value' => 10],
+        ['field' => 'caScore', 'operator' => 'lt', 'value' => 100],
+    ]),
+], ['matchMode' => 'any'])) === ['Beta Two', 'Gamma Three']);
+check('match any: the same field twice still ORs', titlesFor(fixtureFilter([
+    ['field' => 'caScore', 'operator' => 'lt', 'value' => 20],
+    ['field' => 'caScore', 'operator' => 'gt', 'value' => 60],
+], ['matchMode' => 'any'])) === ['Alpha, One', 'Gamma Three']);
+check('an any group: the same field twice still ORs', titlesFor(fixtureFilter([
+    group('any', [
+        ['field' => 'caScore', 'operator' => 'lt', 'value' => 20],
+        ['field' => 'caScore', 'operator' => 'gt', 'value' => 60],
+    ]),
+])) === ['Alpha, One', 'Gamma Three']);
+
+$rangeSaved = new SavedFilter([
+    'name' => 'CA check score range',
+    'handle' => 'ca-check-range',
+    'elementType' => Entry::class,
+    'source' => $source,
+    'filter' => fixtureFilter([
+        ['field' => 'caScore', 'operator' => 'gt', 'value' => 10],
+        ['field' => 'caScore', 'operator' => 'lt', 'value' => 100],
+    ]),
+]);
+$rangeErrors = [];
+$plugin->savedFilters->save($rangeSaved, $rangeErrors);
+$rangeLoaded = $plugin->savedFilters->getByHandle('ca-check-range');
+check('a saved filter with two conditions on one field keeps both', $rangeLoaded !== null && titlesFor($rangeLoaded->filter) === ['Beta Two'], implode(' ', $rangeErrors));
+if ($rangeLoaded) {
+    $plugin->savedFilters->delete($rangeLoaded->id);
+}
+
+// ---------------------------------------------------------------------------
+section('Options that no longer exist');
+// ---------------------------------------------------------------------------
+
+// Craft drops IDs that don't resolve, and some of its queries then add no condition at all —
+// tags' group does — so "is one of [a deleted group]" matched every element. A condition whose
+// every chosen option has gone matches nothing; the options that remain still filter.
+$goneFilter = fn(string $elementType, string $field, string $operator, mixed $value) => FilterSet::fromArray([
+    'elementType' => $elementType,
+    'criteria' => [['field' => $field, 'operator' => $operator, 'value' => $value]],
+]);
+$goneCount = fn(FilterSet $filter) => (int)$plugin->query->build($filter)->count();
+
+foreach ([
+    [craft\elements\Tag::class, 'groupId', 'tags by group', false],
+    [craft\elements\Category::class, 'groupId', 'categories by group', false],
+    [craft\elements\User::class, 'groupId', 'users by group', true],
+    [craft\elements\Asset::class, 'volumeId', 'assets by volume', false],
+    [Entry::class, 'sectionId', 'entries by section', true],
+    [Entry::class, 'typeId', 'entries by entry type', false],
+] as [$goneType, $goneField, $goneLabel, $goneNullable]) {
+    $everything = $goneCount(FilterSet::fromArray(['elementType' => $goneType, 'criteria' => []]));
+    check("$goneLabel: is one of [deleted] matches nothing", $goneCount($goneFilter($goneType, $goneField, 'in', ['999999'])) === 0, "of $everything");
+    check("$goneLabel: is [deleted] matches nothing", $goneCount($goneFilter($goneType, $goneField, 'eq', '999999')) === 0, "of $everything");
+    // Users in no group and nested entries (which have no section) aren't in any group or
+    // section, and Craft's negated parameter leaves them out — a separate question from this
+    // one — so for those two the negated check is only made where everything has one.
+    if (!$goneNullable) {
+        check("$goneLabel: is none of [deleted] excludes nothing", $goneCount($goneFilter($goneType, $goneField, 'notIn', ['999999'])) === $everything);
+    }
+}
+
+check('a deleted section alongside a live one still filters to the live one', titlesFor(FilterSet::fromArray([
+    'elementType' => Entry::class,
+    'criteria' => [['field' => 'sectionId', 'operator' => 'in', 'value' => [(string)$section->id, '999999']]],
+])) === ['Alpha, One', 'Beta Two', 'Delta Four', 'Gamma Three']);
+$goneCriterion = Criterion::fromArray(['field' => 'sectionId', 'operator' => 'in', 'value' => ['999999']]);
+check('a condition naming a deleted option keeps it when saved again', Criterion::fromArray($goneCriterion->toArray())->value === ['999999']);
+
+// ---------------------------------------------------------------------------
 section('Columns');
 // ---------------------------------------------------------------------------
 
