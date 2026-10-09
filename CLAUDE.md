@@ -60,6 +60,11 @@ in the two shapes the regex allows.
   at the top of `tests/integration/*.php`.
 - **`craftcms/phpstan` does not pull in PHPStan itself**; `phpstan/phpstan` has to be required too.
   (The same is true of every sibling plugin that copied the family's `phpstan.neon`.)
+- **Never hand a date *param* a `Db::prepareDateForDb()` string.** Craft's date params (custom
+  fields, native attributes and `Db::parseDateParam()` on a column alike) read a bare
+  `Y-m-d H:i:s` as system time and convert it to UTC themselves, so a pre-converted bound is
+  shifted twice. `Operators::dateParam()` formats with `DATE_ATOM`, which carries its own offset.
+  The fixture-relative date checks only failed in the hours before the offset (00:00–07:00 in LA).
 - **Element query source params are subclass properties.** Set them with
   `Craft::configure($query, ['sectionId' => $id])`, which PHPStan accepts on a base `ElementQuery`.
 
@@ -70,7 +75,7 @@ at `/var/www/craft-cleanair` (and symlinked into the harness's vendor directory 
 `ls -la ~/Sites/plugin-testing/vendor/justinholtweb | grep cleanair`).
 
 ```sh
-docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/checks.php   # 232 + 3 skipped
+docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/checks.php   # 236 + 3 skipped
 docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/trust.php    # 5, a limited editor over HTTP
 docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/reports.php  # 49, scheduled reports
 docker exec -w /var/www/html ddev-plugin-testing-web php /var/www/craft-cleanair/tests/integration/reports-http.php # 17, schedule endpoints + group markup

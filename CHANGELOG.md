@@ -20,6 +20,14 @@
   Products AND (no image OR no price)" is one filter. The `match any` ceiling applies per group and
   the warning names the group that hit it.
 
+### Fixed
+
+- Date conditions (**is on**, **is before**, **is after**, **is between**, **in the last/next…**)
+  converted their dates to UTC twice, shifting them by the site's distance from UTC: on a site
+  west of UTC, "is on 7 October" ran from 7am on the 7th to 7am on the 8th, missing everything
+  earlier in the day and catching the next morning's. They now cover the site's own day and time
+  exactly.
+
 ## 5.0.1 — 2026-09-28
 
 ### Security

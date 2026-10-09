@@ -292,6 +292,17 @@ class Operators extends Component
         return ['strategy' => self::STRATEGY_PARAM, 'value' => ['and', ">= $low", "<= $high"]];
     }
 
+    /**
+     * A date bound for a query *param*, with its offset. Craft's date params read a bare
+     * `Y-m-d H:i:s` as system time and convert it to UTC themselves, so a bound already
+     * converted with `Db::prepareDateForDb()` was shifted twice — west of UTC, "is on" ran from
+     * 7am to 7am and missed everything before breakfast. An ISO 8601 string carries its own zone.
+     */
+    private function dateParam(DateTime $date): string
+    {
+        return $date->format(DATE_ATOM);
+    }
+
     private function toDate(mixed $value, bool $endOfDay = false): ?DateTime
     {
         if ($value === null || $value === '') {
@@ -338,7 +349,7 @@ class Operators extends Component
         if (!$date) {
             return ['strategy' => self::STRATEGY_ABORT];
         }
-        return ['strategy' => self::STRATEGY_PARAM, 'value' => $operator . ' ' . Db::prepareDateForDb($date)];
+        return ['strategy' => self::STRATEGY_PARAM, 'value' => $operator . ' ' . $this->dateParam($date)];
     }
 
     /**
@@ -357,8 +368,8 @@ class Operators extends Component
 
         return ['strategy' => self::STRATEGY_PARAM, 'value' => [
             'and',
-            '>= ' . Db::prepareDateForDb($start),
-            '< ' . Db::prepareDateForDb($end),
+            '>= ' . $this->dateParam($start),
+            '< ' . $this->dateParam($end),
         ]];
     }
 
@@ -377,8 +388,8 @@ class Operators extends Component
 
         return ['strategy' => self::STRATEGY_PARAM, 'value' => [
             'and',
-            '>= ' . Db::prepareDateForDb($start),
-            '<= ' . Db::prepareDateForDb($end),
+            '>= ' . $this->dateParam($start),
+            '<= ' . $this->dateParam($end),
         ]];
     }
 
@@ -400,8 +411,8 @@ class Operators extends Component
 
         return ['strategy' => self::STRATEGY_PARAM, 'value' => [
             'and',
-            '>= ' . Db::prepareDateForDb($from),
-            '<= ' . Db::prepareDateForDb($to),
+            '>= ' . $this->dateParam($from),
+            '<= ' . $this->dateParam($to),
         ]];
     }
 

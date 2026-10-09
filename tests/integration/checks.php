@@ -441,6 +441,22 @@ check('is between dates', titlesFor(fixtureFilter([['field' => 'caWhen', 'operat
 
 // "is on" has to mean the whole day, not midnight exactly.
 check('is on covers the whole day', titlesFor(fixtureFilter([['field' => 'caWhen', 'operator' => 'on', 'value' => (clone $now)->modify('-2 days')->format('Y-m-d')]])) === ['Alpha, One']);
+// …and the *local* whole day. The bounds used to be converted to UTC before Craft's date param
+// converted them again, so west of UTC the day ran 7am to 7am: whether the check above passed
+// depended on the time the suite ran. An entry at 01:30 local time pins it down.
+$early = (clone $now)->modify('-10 days')->setTime(1, 30);
+$earlyEntry = new Entry(['sectionId' => $section->id, 'typeId' => $entryType->id, 'title' => 'Early Bird']);
+$earlyEntry->setFieldValue('caWhen', $early);
+$elementsService->saveElement($earlyEntry);
+check('is on finds an entry at 01:30 local time on that day', titlesFor(fixtureFilter([['field' => 'caWhen', 'operator' => 'on', 'value' => $early->format('Y-m-d')]])) === ['Early Bird']);
+check('is on does not reach into the next local day', titlesFor(fixtureFilter([['field' => 'caWhen', 'operator' => 'on', 'value' => (clone $early)->modify('-1 day')->format('Y-m-d')]])) === []);
+check('is after is exact to the local minute', in_array('Early Bird', titlesFor(fixtureFilter([['field' => 'caWhen', 'operator' => 'after', 'value' => (clone $early)->modify('-1 minute')->format('Y-m-d H:i:s')]])), true) && !in_array('Early Bird', titlesFor(fixtureFilter([['field' => 'caWhen', 'operator' => 'after', 'value' => (clone $early)->modify('+1 minute')->format('Y-m-d H:i:s')]])), true));
+$elementsService->deleteElement($earlyEntry, true);
+
+$onBounds = Db::parseDateParam('d', $plugin->operators->build($definitions['caWhen'], new Criterion(['field' => 'caWhen', 'operator' => 'on', 'value' => '2026-01-15']))['value']);
+$localMidnight = new DateTime('2026-01-15 00:00:00', new DateTimeZone(Craft::$app->getTimeZone()));
+check('is on hands Craft local midnight to local midnight, converted to UTC once', json_encode($onBounds) === json_encode(['and', ['>=', 'd', Db::prepareDateForDb($localMidnight)], ['<', 'd', Db::prepareDateForDb((clone $localMidnight)->modify('+1 day'))]]), json_encode($onBounds));
+
 check('an unparseable date matches nothing', titlesFor(fixtureFilter([['field' => 'caWhen', 'operator' => 'after', 'value' => 'not a date']])) === []);
 
 // ---------------------------------------------------------------------------
